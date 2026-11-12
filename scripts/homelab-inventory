@@ -1,0 +1,98 @@
+#!/bin/sh
+# Read-only, deliberately limited Docker inventory for sudo execution.
+# Install as root:root mode 0755 at /usr/local/sbin/homelab-inventory.
+
+set -eu
+umask 077
+
+DOCKER=/usr/bin/docker
+ENV=/usr/bin/env
+TIMEOUT=/usr/bin/timeout
+SHELL=/bin/sh
+SOCKET=unix:///var/run/docker.sock
+DOCKER_TIMEOUT=15s
+OVERALL_TIMEOUT=180s
+MAX_CONTAINERS=100
+# One extra ID is requested solely to determine whether output is truncated.
+LIST_LIMIT=101
+
+if [ "${1-}" = '__worker' ] && [ "$#" -eq 1 ]; then
+    shift
+elif [ "$#" -ne 0 ]; then
+    printf '%s\n' 'homelab-inventory: arguments are not accepted' >&2
+    exit 64
+else
+    # The public invocation always starts a clean worker under a hard deadline.
+    # Sudoers permits no arguments, so callers cannot select worker mode or
+    # supply a command, timeout, endpoint, or formatting option.
+    exec "$TIMEOUT" --signal=TERM --kill-after=2s "$OVERALL_TIMEOUT" \
+        "$ENV" -i PATH=/usr/bin:/bin HOME=/nonexistent DOCKER_CONFIG=/nonexistent LC_ALL=C \
+        "$SHELL" "$0" __worker
+fi
+
+if [ ! -x "$DOCKER" ] || [ ! -x "$ENV" ] || [ ! -x "$TIMEOUT" ]; then
+    printf '%s\n' 'homelab-inventory: required executable is unavailable' >&2
+    exit 69
+fi
+
+# Every Docker subcommand, option, and format string is fixed. Only a
+# validated daemon-issued container ID is passed to the inspect invocation.
+docker_fixed() {
+    "$TIMEOUT" --signal=TERM --kill-after=2s "$DOCKER_TIMEOUT" \
+        "$ENV" -i PATH=/usr/bin:/bin HOME=/nonexistent DOCKER_CONFIG=/nonexistent LC_ALL=C \
+        "$DOCKER" --host "$SOCKET" "$@"
+}
+
+printf '%s\n' 'Docker container inventory (selected metadata only)' \
+    'Fields: id, name, image, state, health, restart policy, published ports, network names, mount targets/type/read-write flag.' \
+    'Host mount source paths, mount contents, environment, labels, commands, and secrets are excluded.'
+
+# --last caps daemon output before it enters shell memory. The 101st ID is a
+# sentinel that lets us report truncation while processing at most 100.
+ids=$(docker_fixed container ls --all --quiet --no-trunc --last "$LIST_LIMIT")
+if [ -z "$ids" ]; then
+    printf '%s\n' 'No containers found.'
+    exit 0
+fi
+
+# Validate every returned ID, including the truncation sentinel, before any
+# inspect request. Here-document iteration avoids a pipeline subshell, so a
+# failing inspect command remains the script's exit status under `set -e`.
+count=0
+while IFS= read -r id; do
+    case "$id" in
+        ''|*[!0123456789abcdef]*)
+            printf '%s\n' 'homelab-inventory: Docker returned an invalid container ID' >&2
+            exit 70
+            ;;
+    esac
+    if [ "${#id}" -ne 64 ]; then
+        printf '%s\n' 'homelab-inventory: Docker returned an unexpected container ID length' >&2
+        exit 70
+    fi
+    count=$((count + 1))
+done <<EOF
+$ids
+EOF
+
+if [ "$count" -gt "$MAX_CONTAINERS" ]; then
+    printf '%s\n' "TRUNCATED: at least $count containers exist; showing the 100 newest." >&2
+fi
+
+processed=0
+while IFS= read -r id; do
+    if [ "$processed" -ge "$MAX_CONTAINERS" ]; then
+        break
+    fi
+
+    # The Go template deliberately selects individual non-secret fields.
+    # Mount source paths, Config.Env, Config.Labels, and command/entrypoint
+    # values are never selected or emitted. Use index for Health because the
+    # inspect map omits that key entirely when no health check is configured.
+    docker_fixed inspect --type container --format \
+        '{{printf "id="}}{{json .Id}}{{printf " name="}}{{json .Name}}{{printf " image="}}{{json .Config.Image}}{{printf " state="}}{{json .State.Status}}{{printf " health="}}{{if index .State "Health"}}{{json (index (index .State "Health") "Status")}}{{else}}null{{end}}{{printf " restart="}}{{json .HostConfig.RestartPolicy.Name}}{{printf " published_ports="}}{{json .NetworkSettings.Ports}}{{printf " networks="}}{{range $name, $network := .NetworkSettings.Networks}}{{json $name}}{{printf ","}}{{end}}{{printf " mount_targets="}}{{range .Mounts}}{{json .Destination}}{{printf ":"}}{{json .Type}}{{printf ":"}}{{json .RW}}{{printf ","}}{{end}}' \
+        "$id"
+    processed=$((processed + 1))
+done <<EOF
+$ids
+EOF
