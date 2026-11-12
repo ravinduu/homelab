@@ -9,7 +9,7 @@ The audit observed 12 running containers and one exited `hello-world` container.
 |---|---|---|
 | Media | Jellyfin | Healthy container; media mount was read-only. Published TCP 8096 and UDP 7359 on all interfaces. |
 | ARR/downloads | qBittorrent, Prowlarr, Radarr, Sonarr, Unpackerr | On `arr-network`; several web interfaces and torrent ports were published on all interfaces. Images used mutable `latest` tags. |
-| Monitoring | Prometheus, Grafana, cAdvisor, node-exporter, docker-health-exporter | Four Prometheus targets were up. Grafana was loopback-bound; Prometheus was published on all interfaces. Exporter had read-write Docker socket access. Compose and scrape configuration remain inaccessible to `agent`; see [Docker monitoring security review](docker-monitoring-security.md). |
+| Monitoring | Prometheus, Grafana, cAdvisor, node-exporter, docker-health-exporter | Follow-up confirmed four Prometheus targets up and a 15s scrape interval. Exporter's socket bind is `:ro` (which does not restrict Docker API methods); cAdvisor is `privileged: true`. Compose and scrape config are now readable to `agent`; see [Docker monitoring security review](docker-monitoring-security.md). |
 | DNS | Pi-hole | Host networking; DNS and HTTP(S) listeners were observed. |
 | One-off | `sleepy_gagarin` (`hello-world`) | Exited; no service impact observed. |
 

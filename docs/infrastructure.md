@@ -14,7 +14,7 @@ The audit observed `home-server-01` running Debian GNU/Linux 13.6 on x86_64, wit
 
 ## Items requiring owner review
 
-- The Docker health exporter had a read-write Docker socket mount.
+- Follow-up inspection found the Docker health exporter socket bind is `:ro`; Docker API calls through the mounted Unix socket are still not restricted to read-only methods. cAdvisor also runs `privileged: true` with read-only host runtime mounts, so the monitoring trust boundary needs review.
 - A later read-only SSH check found accessible Compose/Prometheus files for LocalStack, Minecraft, and two application projects under `/mnt/media/home/ravindu`, but none identified the running monitoring stack. One LocalStack Compose file declares a Docker socket bind; the approved live inventory did not list a LocalStack container, so deployment status is unverified. The monitoring container's bind source remains hidden by the inventory wrapper. See [Docker monitoring security review](docker-monitoring-security.md) and [remediation plan](../reports/docker-socket-remediation-plan.md).
 - Several service ports listened on all host interfaces; firewall and router/NAT exposure were not verified.
 - `/mnt/media` contained root-like directory names and more used space than the two named media directories accounted for. No data was changed or inspected beyond accessible metadata.

@@ -12,7 +12,7 @@ The main risks to address are:
 
 | Priority | Finding |
 |---|---|
-| **High** | `docker-health-exporter` has the Docker socket mounted read-write, giving a compromised exporter container a path to broad Docker control. |
+| **High** | `docker-health-exporter` can access the Docker API through its mounted socket. Follow-up review confirmed the socket file is bind-mounted read-only, but that does not restrict Docker API methods; the earlier read-write mount characterization was incorrect. |
 | **High** | Prometheus and several application/admin services bind to every host interface. Host firewall rules and router forwarding could not be verified. |
 | **High** | `/mnt/media` contains root-like system directories as well as media/download data; the separate Samba `Old-HDD` share actually resolves to the OS root filesystem. Storage/data placement needs owner review. |
 | **Medium** | No host backup schedule, backup tool, destination, or restore evidence was visible to `agent`; media persistence and recovery are therefore unverified. |
@@ -58,7 +58,7 @@ Docker's persistent targets visible through the approved inventory include Grafa
 | `grafana` | `grafana/grafana:13.2.1` | Running / healthy | `unless-stopped` | `monitoring-network` | `127.0.0.1:3000` only; Grafana data volume; provisioning bind is read-only |
 | `cadvisor` | `ghcr.io/google/cadvisor:v0.60.6` | Running / healthy | `unless-stopped` | `monitoring-network` | No host binding; host `/rootfs`, `/sys`, `/dev/disk`, `/var/run`, `/var/lib/docker` mounts are read-only |
 | `prometheus` | `prom/prometheus:v3.14.0` | Running / no health check | `unless-stopped` | `monitoring-network` | `0.0.0.0:9090` and `[::]:9090`; config bind read-only; data volume |
-| `docker-health-exporter` | `fviolence/docker-health-exporter:v1.0` | Running / no health check | `unless-stopped` | `monitoring-network` | No host port binding; **Docker socket bind is read-write** |
+| `docker-health-exporter` | `fviolence/docker-health-exporter:v1.0` | Running / no health check | `unless-stopped` | `monitoring-network` | No host port binding; socket file bind is read-only (`:ro`), but Docker API methods are not constrained by that mount flag |
 | `node-exporter` | `prom/node-exporter:v1.12.1` | Running / no health check | `unless-stopped` | `monitoring-network` | No host binding; host proc/root/sys mounts are read-only |
 | `qbittorrent` | `lscr.io/linuxserver/qbittorrent:latest` | Running / no health check | `unless-stopped` | `arr-network` | TCP/UDP 6881 and TCP 8080 on all IPv4/IPv6 interfaces; `/config` and `/data` read-write |
 | `prowlarr` | `lscr.io/linuxserver/prowlarr:latest` | Running / no health check | `unless-stopped` | `arr-network` | TCP 9696 on all IPv4/IPv6 interfaces; `/config` read-write |
@@ -97,7 +97,7 @@ No reverse proxy or VPN was positively identified. Ports 80/443 answered 403; pr
 
 ## 7. Security Assessment
 
-**HIGH — Docker socket mounted read-write in an exporter.** The `docker-health-exporter` container mounts `/var/run/docker.sock` with read-write access. Access to the Docker API can allow control of containers and host resources, so compromise of this exporter or a peer able to exploit it could have host-level consequences. Its port has no host binding, but it shares `monitoring-network`; Prometheus is itself published on all host interfaces. Review whether this exporter can be replaced by a narrowly scoped socket proxy or another design that removes unrestricted socket access.
+**HIGH — Broad Docker API access from monitoring containers.** Follow-up inspection confirmed `docker-health-exporter` mounts `/var/run/docker.sock:/var/run/docker.sock:ro`, but the read-only bind only protects the socket filesystem entry; it does not make the Docker HTTP API read-only. A compromised exporter can still attempt Docker API operations allowed by the daemon. The exporter has no host-published port, but shares `monitoring-network`; Prometheus is published on all host interfaces. cAdvisor also mounts `/var/run` read-only and runs with `privileged: true`, so the broader monitoring trust boundary must be reviewed. The earlier report's read-write mount wording was incorrect.
 
 **HIGH — Wide service bindings with firewall state unknown.** Prometheus 9090, qBittorrent 8080/6881, Prowlarr 9696, Radarr 7878, Sonarr 8989, Jellyfin 8096/7359, DNS, SSH, and SMB listeners bind wildcard IPv4/IPv6 addresses. `nft`, `iptables`, `ufw`, and `firewalld` were unavailable/inactive to the audit account. This does not prove that no kernel filtering exists, but the effective host policy could not be verified. Restrict listeners to intended LAN/VLANs and verify router filtering/forwarding before assuming they are private.
 
@@ -114,7 +114,7 @@ No reverse proxy or VPN was positively identified. Ports 80/443 answered 403; pr
 - Prometheus v3.14.0 has four active scrape targets: `prometheus`, `node`, `cadvisor`, and `docker-health`; all four were `up`, with zero dropped targets.
 - Grafana v13.2.1 is healthy at the container and database-health levels. Its listener is loopback-only at `127.0.0.1:3000`. Dashboard search returned 401; dashboard names and availability therefore remain unverified.
 - cAdvisor and node-exporter are running and share `monitoring-network`; their host mounts are read-only in the approved inventory.
-- The Docker health exporter is running, but its own Docker health state is absent and its socket mount is read-write (see High finding).
+- The Docker health exporter is running, but its own Docker health state is absent. Its socket bind is read-only at the filesystem level, while Docker API methods remain unrestricted (see High finding).
 - The Prometheus scrape configuration and Grafana provisioning files were not found in agent-accessible project paths. The approved inventory reports the Prometheus config bind as read-only but intentionally withholds its host source.
 - No independent alerting destination or alert rules were verified. Consider host/disk SMART monitoring, backup-job success alerts, container restart alerts, and alerting on targets missing for more than a short interval.
 
@@ -126,7 +126,7 @@ The media HDD is a single observed data disk; no second local replica was identi
 
 ## 10. Identified Issues and Risks
 
-1. **High:** Read-write Docker socket in `docker-health-exporter` creates a high-impact container-to-host control path.
+1. **High:** Broad Docker API access is available to the health exporter through a read-only socket bind; cAdvisor also has privileged execution and read-only host runtime mounts. A read-only bind is not an API method allowlist.
 2. **High:** Multiple administration and application ports bind to all interfaces while firewall/router policy is unknown.
 3. **High:** SMB is listening broadly; its writable share uses `0777` creation masks and the configured “Old-HDD” path is on `/`.
 4. **Medium:** `/mnt/media` includes root-like directories and substantial unexplained used space; accessible named media folders account for only 9.4 GiB of the 153 GiB reported used.
