@@ -1,0 +1,94 @@
+services:
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      PUID: ${PUID:?required in protected arr runtime env}
+      PGID: ${PGID:?required in protected arr runtime env}
+      TZ: ${TZ:?required in protected arr runtime env}
+      WEBUI_PORT: 8080
+      TORRENTING_PORT: 6881
+    volumes:
+      - /var/lib/homelab/arr/qbittorrent:/config
+      - /mnt/media:/data
+    ports:
+      - "8080:8080"
+      - "6881:6881"
+      - "6881:6881/udp"
+    networks: [arr]
+    restart: unless-stopped
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      PUID: ${PUID:?required in protected arr runtime env}
+      PGID: ${PGID:?required in protected arr runtime env}
+      TZ: ${TZ:?required in protected arr runtime env}
+    volumes:
+      - /var/lib/homelab/arr/prowlarr:/config
+    ports:
+      - "9696:9696"
+    networks: [arr]
+    restart: unless-stopped
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      PUID: ${PUID:?required in protected arr runtime env}
+      PGID: ${PGID:?required in protected arr runtime env}
+      TZ: ${TZ:?required in protected arr runtime env}
+    volumes:
+      - /var/lib/homelab/arr/radarr:/config
+      - /mnt/media:/data
+    ports:
+      - "7878:7878"
+    networks: [arr]
+    restart: unless-stopped
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      PUID: ${PUID:?required in protected arr runtime env}
+      PGID: ${PGID:?required in protected arr runtime env}
+      TZ: ${TZ:?required in protected arr runtime env}
+    volumes:
+      - /var/lib/homelab/arr/sonarr:/config
+      - /mnt/media:/data
+    ports:
+      - "8989:8989"
+    networks: [arr]
+    restart: unless-stopped
+
+  unpackerr:
+    image: golift/unpackerr:latest
+    container_name: unpackerr
+    user: ${PUID:?required in protected arr runtime env}:${PGID:?required in protected arr runtime env}
+    environment:
+      TZ: ${TZ:?required in protected arr runtime env}
+      UN_LOG_FILE: /config/unpackerr.log
+      UN_FOLDER_0_PATH: /data/arr-downloads/complete/radar
+      UN_RADARR_0_URL: http://radarr:7878
+      UN_RADARR_0_API_KEY: ${UN_RADARR_API_KEY:?required in protected arr runtime env}
+      UN_RADARR_0_PATHS_0: /data
+      UN_RADARR_0_PROTOCOLS: torrent,TorrentDownloadProtocol
+      UN_RADARR_0_DELETE_DELAY: 5m
+      UN_RADARR_0_DELETE_ORIG: "false"
+      UN_SONARR_0_URL: http://sonarr:8989
+      UN_SONARR_0_API_KEY: ${UN_SONARR_API_KEY:?required in protected arr runtime env}
+      UN_SONARR_0_PATHS_0: /data
+      UN_SONARR_0_PROTOCOLS: torrent,TorrentDownloadProtocol
+      UN_SONARR_0_DELETE_DELAY: 5m
+      UN_SONARR_0_DELETE_ORIG: "false"
+    volumes:
+      - /var/lib/homelab/arr/unpackerr:/config
+      - /mnt/media:/data
+    networks: [arr]
+    restart: unless-stopped
+
+networks:
+  arr:
+    name: arr-network
+    driver: bridge

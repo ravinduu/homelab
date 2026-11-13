@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "operations": ["status", "restart"],
+  "services": {
+    "jellyfin": {
+      "container_name": "jellyfin",
+      "image": "jellyfin/jellyfin:latest",
+      "compose_project": "jellyfin",
+      "compose_service": "jellyfin"
+    }
+  }
+}

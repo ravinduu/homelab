@@ -1,0 +1,16 @@
+# Python bytecode and local virtual environments
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Local environment files and secrets (keep only example templates in Git)
+.env
+.env.*
+*.env
+!.env.example
+secrets/
+
+# Runtime-only operational data; keep outside version control
+ops/runtime-env/
+ops/approvals/
