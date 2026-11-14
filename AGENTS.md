@@ -208,3 +208,33 @@ Stop and request human intervention when:
 - The rollback procedure is unavailable or unsafe.
 
 Never bypass a security restriction to complete a task.
+
+## Repository Development Contract
+
+`homelab-ops` development is specification-driven. Before implementation, read
+the relevant product specification, architecture documents, and active phase
+specification in `specs/`. Use the workflow and templates described in
+[`specs/README.md`](specs/README.md).
+
+AI coding agents must:
+
+1. Identify the active phase and read its specification and relevant ADRs.
+2. Surface ambiguities that affect security, compatibility, or acceptance; do
+   not silently invent requirements.
+3. Prepare or update a technical design and ordered task breakdown before
+   substantial implementation.
+4. Implement only the reviewed scope; a draft specification is not production
+   authorization.
+5. Add automated tests for implementation changes and include negative
+   security cases where applicable.
+6. Record requirement-to-verification evidence and known limitations.
+7. Preserve installed paths, exact CLI behavior, import expectations, policy
+   semantics, and bootstrap compatibility unless a separately scoped migration
+   explicitly changes them.
+8. Keep local implementation and production deployment separate. Production
+   changes remain subject to Observe, Plan, and Execute restrictions above.
+
+The required lifecycle is **Specification → Technical Design → Task Breakdown
+→ Implementation → Verification → Review → Release**. Preserve the existing
+`.agents/skills/` procedures. Do not move or package privileged gateway code
+as a documentation-only change.

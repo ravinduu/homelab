@@ -9,39 +9,17 @@ import re
 import subprocess
 import sys
 import syslog
-import stat
 from pathlib import Path
 from typing import Callable
 
 
-def preimport_check(path: Path, *, mode: int) -> None:
-    absolute = path.absolute()
-    for component in reversed((absolute, *absolute.parents)):
-        info = component.lstat()
-        if stat.S_ISLNK(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
-            raise RuntimeError("unsafe installed path")
-        if component != absolute and not stat.S_ISDIR(info.st_mode):
-            raise RuntimeError("unsafe installed parent")
-    info = absolute.lstat()
-    if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != mode:
-        raise RuntimeError("unsafe installed module")
-
-
-COMMON_IMPORT_PATH = Path(__file__).absolute().with_name("homelab_ops_common.py")
-if __name__ == "__main__":
-    try:
-        preimport_check(COMMON_IMPORT_PATH, mode=0o640)
-    except (OSError, RuntimeError):
-        print("homelab-ops: executable ownership or mode check failed", file=sys.stderr)
-        raise SystemExit(77)
-sys.path.insert(0, str(COMMON_IMPORT_PATH.parent))
-
-from homelab_ops_common import ApprovalError, check_protected_path, consume_restart_approval
+from ..approvals.store import ApprovalError, check_protected_path, consume_restart_approval
 
 syslog.openlog("homelab-ops", syslog.LOG_PID, syslog.LOG_AUTHPRIV)
 
 GATEWAY_PATH = Path("/usr/local/sbin/homelab-ops")
 COMMON_PATH = Path("/usr/local/sbin/homelab_ops_common.py")
+PACKAGE_DIR = Path("/usr/local/lib/homelab_ops")
 INVENTORY = "/usr/local/sbin/homelab-inventory"
 INVENTORY_PATH = Path(INVENTORY)
 DOCKER = "/usr/bin/docker"
@@ -271,6 +249,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         check_protected_path(GATEWAY_PATH, file_mode=0o750)
         check_protected_path(COMMON_PATH, file_mode=0o640)
+        for module_path in (
+            PACKAGE_DIR / "__init__.py",
+            PACKAGE_DIR / "approvals" / "__init__.py",
+            PACKAGE_DIR / "approvals" / "store.py",
+            PACKAGE_DIR / "gateway" / "__init__.py",
+            PACKAGE_DIR / "gateway" / "core.py",
+            PACKAGE_DIR / "gateway" / "approval_cli.py",
+        ):
+            check_protected_path(module_path, file_mode=0o640)
         check_protected_path(INVENTORY_PATH, file_mode=0o755)
         policy = load_server_policy()
     except ApprovalError:

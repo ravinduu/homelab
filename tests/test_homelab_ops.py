@@ -2,26 +2,39 @@ from __future__ import annotations
 
 import contextlib
 import io
+import ast
+import re
 import unittest
 from unittest.mock import patch
 
-import importlib.util
-import importlib.machinery
 from pathlib import Path
 import shutil
 import sys
 import subprocess
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "homelab-ops"
-LOADER = importlib.machinery.SourceFileLoader("homelab_ops", str(SCRIPT))
-SPEC = importlib.util.spec_from_loader("homelab_ops", LOADER)
-homelab_ops = importlib.util.module_from_spec(SPEC)
-assert SPEC.loader is not None
-sys.modules[SPEC.name] = homelab_ops
-SPEC.loader.exec_module(homelab_ops)
+REPO = Path(__file__).resolve().parents[1]
+SCRIPT = REPO / "scripts" / "homelab-ops"
+sys.path.insert(0, str(REPO / "src"))
+from homelab_ops import client as homelab_ops
 
 
 class HomelabOpsClientTests(unittest.TestCase):
+    def test_installer_embedded_python_blocks_parse(self) -> None:
+        installer = (REPO / "scripts" / "install-homelab-ops.sh").read_text()
+        blocks = re.findall(r"<<'PY'\n(.*?)\nPY", installer, flags=re.DOTALL)
+        self.assertGreaterEqual(len(blocks), 3)
+        for index, block in enumerate(blocks):
+            with self.subTest(block=index):
+                ast.parse(block)
+
+    def test_compatibility_script_preserves_dry_run_entry_point(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "status"], capture_output=True, text=True, check=False
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("DRY RUN", result.stdout)
+        self.assertIn("home-server-agent", result.stdout)
+
     def test_status_is_dry_run_by_default(self) -> None:
         output = io.StringIO()
         with contextlib.redirect_stdout(output), patch.object(homelab_ops.subprocess, "run") as run:

@@ -1,6 +1,6 @@
 # `homelab-ops` Phase 2 administrator installation checklist
 
-**Status:** Local implementation and tests are ready for review. Nothing has been installed or executed on the server. Installation requires an authorized administrator; `agent` cannot write privileged locations and must not gain Docker or general sudo access.
+**Status:** First-install procedure only. The November 14 Phase 2 record reports an existing server installation; this checklist and the package-layout migration have not been executed on the host. The local bootstrap refuses existing destinations. Any future installation requires an authorized administrator; `agent` cannot write privileged locations and must not gain Docker or general sudo access.
 
 ## Scope and privilege boundary
 
@@ -34,23 +34,47 @@ No environment files, credentials, or Compose files are part of this installatio
 
 ## Install files and protected approval storage
 
-Using the administrator's trusted transfer route, place exactly these reviewed files in `/root/homelab-ops-phase2/`: `install-homelab-ops.sh`, `homelab-ops-gateway`, `homelab_ops_common.py`, `homelab-ops-approve-restart`, and `server-policy.json`. The directory must be `root:root 0700`; the installer must be `root:root 0700`; the other source files must be `root:root 0600`. The installer rejects symlinks, non-root ownership, hard-linked files, group/world-accessible source files, and unsafe parent paths. Do not use an `agent`-writable path as privileged input.
+The first-install staging contract now includes the package implementation. Using the administrator's trusted transfer route, stage exactly the reviewed installer, three compatibility entry points/facade, policy, and this server-side Python package subset:
+
+```text
+/root/homelab-ops-phase2/
+  install-homelab-ops.sh
+  homelab-ops-gateway          # from packaging/entrypoints/
+  homelab_ops_common.py        # from packaging/entrypoints/
+  homelab-ops-approve-restart  # from packaging/entrypoints/
+  server-policy.json
+  homelab_ops/
+    __init__.py
+    approvals/__init__.py
+    approvals/store.py
+    gateway/__init__.py
+    gateway/core.py
+    gateway/approval_cli.py
+```
+
+The staging directory and package directories must be `root:root 0700`; the
+installer must be `root:root 0700`; all source files must be `root:root 0600`.
+Do not stage `client.py` on the server: it is the local requester CLI and reads
+the local repository allowlist. The installer rejects symlinks,
+non-root-owned files, hard-linked files, group/world-accessible source files,
+unexpected package contents, and unsafe parent paths. Do not use an
+`agent`-writable path as privileged input.
 
 On the local reviewed checkout, obtain expected hashes with:
 
 ```sh
-shasum -a 256 scripts/install-homelab-ops.sh scripts/homelab-ops-gateway scripts/homelab_ops_common.py scripts/homelab-ops-approve-restart infra/policy/server-policy.json
+shasum -a 256 scripts/install-homelab-ops.sh packaging/entrypoints/homelab-ops-gateway packaging/entrypoints/homelab_ops_common.py packaging/entrypoints/homelab-ops-approve-restart infra/policy/server-policy.json src/homelab_ops/__init__.py src/homelab_ops/approvals/__init__.py src/homelab_ops/approvals/store.py src/homelab_ops/gateway/__init__.py src/homelab_ops/gateway/core.py src/homelab_ops/gateway/approval_cli.py
 ```
 
-The installer prints target-side hashes for all five files before making changes. Compare them byte-for-byte with these local values and stop on any mismatch. Then the administrator runs the installer from the protected staging directory:
+The installer prints target-side hashes for all eleven files before making changes. Compare them byte-for-byte with these local values and stop on any mismatch. Then the administrator runs the installer from the protected staging directory:
 
 ```sh
 sudo /root/homelab-ops-phase2/install-homelab-ops.sh
 ```
 
-Run that command from the administrator's `ravindu` account on `home-server-01`. After it prints the five protected source hashes, compare them with the local reviewed hashes and type `INSTALL` at its prompt. The installer requires root, accepts no arguments, revalidates the protected source and destination paths, verifies the live Jellyfin mapping, requires the current inventory sudoers rule to remain present and valid, and refuses to overwrite any existing destination. On a failed step its exit handler removes only paths created by that run and disables the new sudoers entry first. If cleanup reports incomplete, stop and inspect those exact paths as administrator.
+Run that command from the administrator's `ravindu` account on `home-server-01`. After it prints the eleven protected source hashes, compare them with the local reviewed hashes and type `INSTALL` at its prompt. The installer requires root, accepts no arguments, revalidates the protected source and destination paths, verifies the live Jellyfin mapping, requires the current inventory sudoers rule to remain present and valid, and refuses to overwrite any existing destination. It installs the gateway package beneath `/usr/local/lib/homelab_ops` while retaining the legacy `/usr/local/sbin` entry points. On a failed step its exit handler removes only paths created by that run and disables the new sudoers entry first. If cleanup reports incomplete, stop and inspect those exact paths as administrator.
 
-The local server policy is a proposal independent of the client `infra/policy/allowlist.json`. Install it as `/etc/homelab-ops/gateway-policy.json` (`root:root 0640`). The gateway checks its own file (`root:root 0750`), shared module (`root:root 0640`), policy, inventory wrapper (`root:root 0755`), and every parent path for root ownership, non-symlink components, and no group/world write permission. The approval helper checks its executable and shared module before creating an approval.
+The local server policy is a proposal independent of the client `infra/policy/allowlist.json`. Install it as `/etc/homelab-ops/gateway-policy.json` (`root:root 0640`). The gateway checks its own file (`root:root 0750`), compatibility facade (`root:root 0640`), each package module (`root:root 0640`), policy, inventory wrapper (`root:root 0755`), and every parent path for root ownership, non-symlink components, and no group/world write permission. The approval helper checks its executable, facade, and package before creating an approval.
 
 ## Exact sudoers policy
 
@@ -132,6 +156,7 @@ After confirming the include is absent, remove only the newly installed gateway/
    sudo rm -- /usr/local/sbin/homelab-ops
    sudo rm -- /usr/local/sbin/homelab-ops-approve-restart
    sudo rm -- /usr/local/sbin/homelab_ops_common.py
+   sudo rm -r -- /usr/local/lib/homelab_ops
    sudo rm -- /etc/homelab-ops/gateway-policy.json
    ```
 

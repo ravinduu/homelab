@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import contextlib
+import importlib
+import io
 import importlib.machinery
 import importlib.util
-import io
 import json
 import os
 import stat
@@ -17,23 +18,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parents[1]
-SCRIPTS = REPO / "scripts"
-sys.path.insert(0, str(SCRIPTS))
+ENTRYPOINTS = REPO / "packaging" / "entrypoints"
+sys.path.insert(0, str(REPO / "src"))
 
-
-def load_script(name: str, filename: str):
-    loader = importlib.machinery.SourceFileLoader(name, str(SCRIPTS / filename))
-    spec = importlib.util.spec_from_loader(name, loader)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    assert spec.loader is not None
-    spec.loader.exec_module(module)
-    return module
-
-
-common = importlib.import_module("homelab_ops_common")
-gateway = load_script("homelab_ops_gateway", "homelab-ops-gateway")
-approver = load_script("homelab_ops_approver", "homelab-ops-approve-restart")
+common = importlib.import_module("homelab_ops.approvals.store")
+gateway = importlib.import_module("homelab_ops.gateway.core")
+approver = importlib.import_module("homelab_ops.gateway.approval_cli")
 
 
 class GatewayRequestTests(unittest.TestCase):
@@ -52,6 +42,79 @@ class GatewayRequestTests(unittest.TestCase):
         ):
             with self.subTest(arguments=arguments), contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(gateway.dispatch(arguments, command_runner=self.fail_runner), 64)
+
+    def test_privileged_compatibility_entry_points_import_package_and_fail_closed(self) -> None:
+        for entrypoint in ("homelab-ops-gateway", "homelab-ops-approve-restart"):
+            with self.subTest(entrypoint=entrypoint):
+                result = subprocess.run(
+                    [sys.executable, "-I", str(ENTRYPOINTS / entrypoint)],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 77, result.stderr)
+                self.assertTrue(result.stderr)
+
+    def test_legacy_shared_module_path_remains_a_compatibility_facade(self) -> None:
+        path = ENTRYPOINTS / "homelab_ops_common.py"
+        name = "homelab_ops_common_compat"
+        loader = importlib.machinery.SourceFileLoader(name, str(path))
+        spec = importlib.util.spec_from_loader(name, loader)
+        module = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(module)
+        self.assertIs(module.ApprovalError, common.ApprovalError)
+        self.assertIs(module.consume_restart_approval, common.consume_restart_approval)
+
+    def test_installed_package_mode_symlink_and_link_count_checks(self) -> None:
+        name = "homelab_ops_gateway_compat_for_permissions"
+        loader = importlib.machinery.SourceFileLoader(name, str(ENTRYPOINTS / "homelab-ops-gateway"))
+        spec = importlib.util.spec_from_loader(name, loader)
+        wrapper = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(wrapper)
+
+        with tempfile.TemporaryDirectory() as temp:
+            package = Path(temp) / "homelab_ops"
+            (package / "approvals").mkdir(parents=True)
+            (package / "gateway").mkdir()
+            package.chmod(0o755)
+            (package / "approvals").chmod(0o755)
+            (package / "gateway").chmod(0o755)
+            for relative in wrapper.PACKAGE_FILES:
+                module_path = package / relative
+                module_path.write_text("# test module\n")
+                module_path.chmod(0o640)
+
+            wrapper.validate_package_tree(package, root_uid=os.getuid(), root_gid=os.getgid())
+            bad_mode = package / "gateway" / "core.py"
+            bad_mode.chmod(0o644)
+            with self.assertRaises(RuntimeError):
+                wrapper.validate_package_tree(package, root_uid=os.getuid(), root_gid=os.getgid())
+            bad_mode.chmod(0o640)
+
+            module_path = package / "approvals" / "store.py"
+            hardlink = package / "approvals" / "store-copy.py"
+            os.link(module_path, hardlink)
+            with self.assertRaises(RuntimeError):
+                wrapper.validate_package_tree(package, root_uid=os.getuid(), root_gid=os.getgid())
+            hardlink.unlink()
+            (package / "approvals").rename(package / "approvals-real")
+            (package / "approvals").symlink_to("approvals-real", target_is_directory=True)
+            with self.assertRaises(RuntimeError):
+                wrapper.validate_package_tree(package, root_uid=os.getuid(), root_gid=os.getgid())
+
+    def test_legacy_shared_module_path_remains_a_compatibility_facade(self) -> None:
+        path = ENTRYPOINTS / "homelab_ops_common.py"
+        spec = importlib.util.spec_from_loader(
+            "homelab_ops_common_compat",
+            importlib.machinery.SourceFileLoader("homelab_ops_common_compat", str(path)),
+        )
+        module = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(module)
+        self.assertIs(module.ApprovalError, common.ApprovalError)
+        self.assertIs(module.consume_restart_approval, common.consume_restart_approval)
 
     @staticmethod
     def fail_runner(*args, **kwargs):

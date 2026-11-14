@@ -2,6 +2,8 @@
 
 **Implementation state (updated 2026-11-14):** The gateway was already installed on `home-server-01`; the first-install script correctly refused to replace it. The shared approval module was then updated in place with the protected-path stat-result fix. Server logs show status success and two successful Jellyfin restarts after the update; an unapproved request was denied. No sudoers, approval-storage, or Compose configuration changes were made.
 
+**Local source layout:** Python implementation lives in `src/homelab_ops/`; compatibility entrypoint sources live in `packaging/entrypoints/`, while `scripts/homelab-ops` remains the operator CLI. This repository migration has not been installed on the server; reported host behavior refers to the previously installed entry points and does not verify this package layout.
+
 ## Scope
 
 Only `status` and `restart jellyfin` are implemented. The Phase 1 approved inventory observed `/jellyfin` running, healthy, and using `jellyfin/jellyfin:latest`; it did not expose Compose labels or a stable container ID. The independent server policy is currently a local proposal and its project/service labels must be verified by an administrator before installation. At restart time, the gateway checks the live name, image, Compose project/service labels, and running state, then restarts by the verified container ID. Deploy, rollback, other services, arbitrary Docker commands, and host reboot are intentionally unsupported.
@@ -78,4 +80,4 @@ The privileged gateway itself is designed to run as a protected root-owned insta
 
 After the November 14 patch, the gateway-specific suite passed all 17 tests locally. On the server, the administrator confirmed successful status and restart outcomes in the `homelab-ops` journal. The restart at 19:19:47 followed a separately approved request; the 19:19:33 unapproved request was denied. These are the recorded runtime results; no new sudoers rule or installer run was performed.
 
-See [the administrator installation checklist](homelab-ops-installation.md) for the original first-install procedure and [Phase 3 planning](homelab-ops-phase-3.md) for the proposed next operations phase.
+See [the administrator installation checklist](homelab-ops-installation.md) for the original first-install procedure and [the Phase 3 policy-engine specification](../specs/phases/phase-03-policy-engine/specification.md) for the proposed next phase.

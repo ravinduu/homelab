@@ -1,0 +1,30 @@
+# Authorization and policy engine
+
+Current gateway behavior combines exact request parsing, a root-protected JSON
+mapping for one restart target, operation checks, and a client-side convenience
+allowlist. Server policy is authoritative. Schema 1 is specific to Phase 2;
+there is no reusable generalized policy engine.
+
+Target evaluation is deterministic and default-deny. Inputs: verified
+principal, operation ID, typed resource, constraints, context, and policy
+revision. Output: allow/deny, obligations (including human approval), stable
+reason code, and policy revision for audit. Adapters cannot bypass the result.
+
+Phase 3 will specify role/permission composition, scope, deny precedence,
+constraints, schema evolution, validation, review, and policy integrity.
+Updates require authenticated administrator promotion. No Phase 3 engine or
+schema is implemented here.
+
+```mermaid
+flowchart TD
+  Q[Request] --> V[Validate schema]
+  V -->|invalid| D[Deny]
+  V --> P[Resolve verified principal]
+  P -->|unknown| D
+  P --> E[Evaluate protected policy]
+  E -->|no allow / conflict| D
+  E -->|approval required| A[Validate separate approval]
+  E -->|allowed| X[Bounded execution]
+  A -->|invalid| D
+  A -->|valid| X
+```

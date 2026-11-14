@@ -49,7 +49,7 @@ ops/
   runtime-env/                 # secret-bearing files outside Git; never copied into release
 scripts/
   homelab-ops                  # local request client (implemented in this phase)
-  homelab-ops-gateway          # future root-owned server executable (not installed or run)
+  homelab-ops-gateway          # packaging/entrypoints source; installed only by reviewed admin procedure
 tests/
 ```
 
