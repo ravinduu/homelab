@@ -1,6 +1,6 @@
 # Homelab Operations Phase 2: status and Jellyfin restart
 
-**Implementation state (2026-11-13):** Local gateway and mocked tests are implemented. Server installation is pending administrator action. No remote files, permissions, or containers were changed.
+**Implementation state (updated 2026-11-14):** The gateway was already installed on `home-server-01`; the first-install script correctly refused to replace it. The shared approval module was then updated in place with the protected-path stat-result fix. Server logs show status success and two successful Jellyfin restarts after the update; an unapproved request was denied. No sudoers, approval-storage, or Compose configuration changes were made.
 
 ## Scope
 
@@ -49,4 +49,33 @@ The repository `.gitignore` now excludes Python caches/virtual environments, `.e
 
 The one-time root-only bootstrap is [scripts/install-homelab-ops.sh](../scripts/install-homelab-ops.sh). Its local validation is limited to shell syntax, embedded Python syntax, the non-root refusal path, and the existing 34-test gateway/project suite; it has not been executed against a Debian host.
 
-See [the administrator installation checklist](homelab-ops-installation.md) for protected staging requirements, the exact administrator invocation, sudoers policy, live-identity preflight, first safe test, approved restart procedure, and uninstall instructions. No server-side installation or restart has been performed.
+## Local development and testing
+
+Run these commands from the repository root. Python 3 is the only requirement; the gateway tests use the standard library and temporary directories, and mock Docker/SSH command execution.
+
+Run the gateway regression suite:
+
+```sh
+python3 -m unittest discover -s tests -p 'test_homelab_ops_gateway.py' -v
+```
+
+Run all local tests, including the client and inventory tests:
+
+```sh
+python3 -m unittest discover -s tests -v
+```
+
+Print the client request without sending it over SSH:
+
+```sh
+python3 scripts/homelab-ops status
+python3 scripts/homelab-ops restart jellyfin
+```
+
+These commands only show the SSH command that would be issued. The `--send` option is a remote operation: it contacts `home-server-agent` and invokes the installed gateway on `home-server-01`. It is not needed for local testing. Status is read-only; `--send restart jellyfin` can restart Jellyfin only if the server has a valid administrator-created approval, so use it only as part of the approved restart procedure above.
+
+The privileged gateway itself is designed to run as a protected root-owned installation on Debian, not directly from a developer checkout. Its behavior is exercised locally through mocked tests. The approval storage under `/var/lib/homelab-ops` and the server policy under `/etc/homelab-ops` are not created or modified by these local commands.
+
+After the November 14 patch, the gateway-specific suite passed all 17 tests locally. On the server, the administrator confirmed successful status and restart outcomes in the `homelab-ops` journal. The restart at 19:19:47 followed a separately approved request; the 19:19:33 unapproved request was denied. These are the recorded runtime results; no new sudoers rule or installer run was performed.
+
+See [the administrator installation checklist](homelab-ops-installation.md) for the original first-install procedure and [Phase 3 planning](homelab-ops-phase-3.md) for the proposed next operations phase.

@@ -46,6 +46,7 @@ def check_protected_path(path: Path, *, root_uid: int = 0, file_mode: int | None
     """Require every path component to be root-owned and non-writable by others."""
     absolute = path.absolute()
     chain = list(reversed((absolute, *absolute.parents)))
+    final_info: os.stat_result | None = None
     for component in chain:
         try:
             info = component.lstat()
@@ -53,7 +54,10 @@ def check_protected_path(path: Path, *, root_uid: int = 0, file_mode: int | None
             raise ApprovalError("protected path unavailable") from error
         expected = "parent" if component != absolute else ("directory" if file_mode is None else "file")
         validate_component(info, root_uid=root_uid, expected=expected, file_mode=file_mode)
-    return chain[0]
+        if component == absolute:
+            final_info = info
+    assert final_info is not None
+    return final_info
 
 
 def check_approval_directories(*, root_uid: int = 0) -> None:
