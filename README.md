@@ -44,6 +44,8 @@ test shortcut.
   bootstrap installer.
 - `packaging/entrypoints/`: compatibility entrypoint sources installed at the
   legacy privileged command paths.
+- [Canary install runbook](docs/operations/homelab-ops-canary.md): separate
+  first-install namespace for trying the new package beside the current one.
 - `infra/`: local policy proposals and sanitized Compose snapshots, not
   implicitly deployable releases.
 - `docs/`, `reports/`: operational documentation and evidence-based reviews.

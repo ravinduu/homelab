@@ -44,16 +44,39 @@ class GatewayRequestTests(unittest.TestCase):
                 self.assertEqual(gateway.dispatch(arguments, command_runner=self.fail_runner), 64)
 
     def test_privileged_compatibility_entry_points_import_package_and_fail_closed(self) -> None:
-        for entrypoint in ("homelab-ops-gateway", "homelab-ops-approve-restart"):
+        for entrypoint, directory in (
+            ("homelab-ops-gateway", ENTRYPOINTS),
+            ("homelab-ops-approve-restart", ENTRYPOINTS),
+            ("homelab-ops-canary", REPO / "packaging" / "entrypoints"),
+            ("homelab-ops-approve-restart-canary", REPO / "packaging" / "entrypoints"),
+        ):
             with self.subTest(entrypoint=entrypoint):
                 result = subprocess.run(
-                    [sys.executable, "-I", str(ENTRYPOINTS / entrypoint)],
+                    [sys.executable, "-I", str(directory / entrypoint)],
                     capture_output=True,
                     text=True,
                     check=False,
                 )
                 self.assertEqual(result.returncode, 77, result.stderr)
                 self.assertTrue(result.stderr)
+
+    def test_canary_entrypoint_configuration_uses_disjoint_paths(self) -> None:
+        command = (
+            "import runpy,sys; runpy.run_path(sys.argv[1]); "
+            "from homelab_ops.gateway import core; "
+            "from homelab_ops.approvals import store; "
+            "assert str(core.GATEWAY_PATH).endswith('homelab-ops-canary'); "
+            "assert str(core.POLICY_PATH).startswith('/etc/homelab-ops-canary/'); "
+            "assert str(store.APPROVAL_ROOT).startswith('/var/lib/homelab-ops-canary/'); "
+            "assert str(core.PACKAGE_DIR).startswith('/usr/local/lib/homelab-ops-canary/')"
+        )
+        result = subprocess.run(
+            [sys.executable, "-I", "-c", command, str(ENTRYPOINTS / "homelab-ops-canary")],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_legacy_shared_module_path_remains_a_compatibility_facade(self) -> None:
         path = ENTRYPOINTS / "homelab_ops_common.py"
@@ -141,6 +164,24 @@ class GatewayRequestTests(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(gateway.dispatch(["status"], command_runner=failed), 9)
             self.assertEqual(gateway.dispatch(["status"], command_runner=timed_out), 124)
+
+    def test_policy_default_path_is_selected_at_call_time(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            policy_path = Path(temp) / "policy.json"
+            policy_path.write_text(json.dumps({
+                "schema": 1,
+                "operations": ["status", "restart"],
+                "services": {"jellyfin": {
+                    "container_name": "jellyfin",
+                    "image": "jellyfin/jellyfin:latest",
+                    "compose_project": "jellyfin",
+                    "compose_service": "jellyfin",
+                }},
+            }))
+            with patch.object(gateway, "POLICY_PATH", policy_path), patch.object(gateway, "check_protected_path") as check:
+                policy = gateway.load_server_policy()
+            check.assert_called_once_with(policy_path, file_mode=0o640)
+            self.assertEqual(policy["schema"], 1)
 
 
 class ApprovalTests(unittest.TestCase):

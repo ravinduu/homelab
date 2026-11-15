@@ -61,10 +61,11 @@ def caller_name(environment: dict[str, str] | None = None) -> str:
     return candidate if SAFE_CALLER_RE.fullmatch(candidate) else "invalid-caller"
 
 
-def load_server_policy(path: Path = POLICY_PATH) -> dict[str, object]:
-    check_protected_path(path, file_mode=0o640)
+def load_server_policy(path: Path | None = None) -> dict[str, object]:
+    selected_path = POLICY_PATH if path is None else path
+    check_protected_path(selected_path, file_mode=0o640)
     try:
-        raw = path.read_text(encoding="utf-8")
+        raw = selected_path.read_text(encoding="utf-8")
         policy = json.loads(raw, object_pairs_hook=_unique_policy_keys)
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
         raise ApprovalError("server policy is unavailable or invalid") from error

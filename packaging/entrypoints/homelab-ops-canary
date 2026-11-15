@@ -1,0 +1,74 @@
+#!/usr/bin/python3 -I
+"""Isolated canary gateway entry point; never selects paths from request data."""
+
+from __future__ import annotations
+
+import stat
+import sys
+import syslog
+from pathlib import Path
+
+INSTALLED_PATH = Path("/usr/local/sbin/homelab-ops-canary")
+PACKAGE_BASE = Path("/usr/local/lib/homelab-ops-canary")
+PACKAGE_ROOT = PACKAGE_BASE / "homelab_ops"
+PACKAGE_FILES = (
+    "__init__.py",
+    "approvals/__init__.py",
+    "approvals/store.py",
+    "gateway/__init__.py",
+    "gateway/core.py",
+    "gateway/approval_cli.py",
+)
+
+
+def validate_package_tree(package_root: Path, *, root_uid: int = 0, root_gid: int = 0) -> None:
+    for relative in (".", "approvals", "gateway"):
+        path = package_root if relative == "." else package_root / relative
+        info = path.lstat()
+        if (stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode)
+                or info.st_uid != root_uid or info.st_gid != root_gid
+                or stat.S_IMODE(info.st_mode) != 0o755):
+            raise RuntimeError("unsafe canary package directory")
+    for relative in PACKAGE_FILES:
+        info = (package_root / relative).lstat()
+        if (stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode)
+                or info.st_uid != root_uid or info.st_gid != root_gid
+                or stat.S_IMODE(info.st_mode) != 0o640 or info.st_nlink != 1):
+            raise RuntimeError("unsafe canary package module")
+
+
+def load_canary_package() -> None:
+    if Path(__file__).absolute() == INSTALLED_PATH:
+        for component in reversed((PACKAGE_BASE, *PACKAGE_BASE.parents)):
+            info = component.lstat()
+            if (stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode)
+                    or info.st_uid != 0 or info.st_gid != 0 or info.st_mode & 0o022):
+                raise RuntimeError("unsafe canary package path")
+        validate_package_tree(PACKAGE_ROOT)
+        sys.path.insert(0, str(PACKAGE_BASE))
+    else:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+
+
+try:
+    load_canary_package()
+except (OSError, RuntimeError):
+    print("homelab-ops-canary: package ownership or mode check failed", file=sys.stderr)
+    raise SystemExit(77)
+
+from homelab_ops.approvals import store
+from homelab_ops.gateway import core
+
+core.GATEWAY_PATH = INSTALLED_PATH
+core.PACKAGE_DIR = PACKAGE_ROOT
+core.COMMON_PATH = PACKAGE_ROOT / "approvals" / "store.py"
+core.POLICY_PATH = Path("/etc/homelab-ops-canary/gateway-policy.json")
+store.APPROVAL_ROOT = Path("/var/lib/homelab-ops-canary/approvals")
+store.PENDING_DIR = store.APPROVAL_ROOT / "pending"
+store.CONSUMED_DIR = store.APPROVAL_ROOT / "consumed"
+store.PENDING_RESTART = store.PENDING_DIR / "restart-jellyfin.json"
+syslog.openlog("homelab-ops-canary", syslog.LOG_PID, syslog.LOG_AUTHPRIV)
+
+
+if __name__ == "__main__":
+    raise SystemExit(core.main())
