@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import contextlib
 import importlib
-import io
 import importlib.machinery
 import importlib.util
+import io
 import json
 import os
 import stat
@@ -27,6 +27,19 @@ approver = importlib.import_module("homelab_ops.gateway.approval_cli")
 
 
 class GatewayRequestTests(unittest.TestCase):
+    policy = {
+        "schema": 1,
+        "operations": ["status", "restart"],
+        "services": {
+            "jellyfin": {
+                "container_name": "jellyfin",
+                "image": "jellyfin/jellyfin:latest",
+                "compose_project": "jellyfin",
+                "compose_service": "jellyfin",
+            }
+        },
+    }
+
     def setUp(self) -> None:
         self.logs = patch.object(gateway, "log_event")
         self.logs.start()
@@ -36,9 +49,14 @@ class GatewayRequestTests(unittest.TestCase):
         self.assertEqual(gateway.parse_request(["status"]), ("status", None))
         self.assertEqual(gateway.parse_request(["restart", "jellyfin"]), ("restart", "jellyfin"))
         for arguments in (
-            [], ["status", "extra"], ["restart"], ["restart", "pihole"],
-            ["restart", "jellyfin", "extra"], ["restart", "jellyfin;id"],
-            ["docker", "ps"], ["deploy", "arr", "a" * 40],
+            [],
+            ["status", "extra"],
+            ["restart"],
+            ["restart", "pihole"],
+            ["restart", "jellyfin", "extra"],
+            ["restart", "jellyfin;id"],
+            ["docker", "ps"],
+            ["deploy", "arr", "a" * 40],
         ):
             with self.subTest(arguments=arguments), contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(gateway.dispatch(arguments, command_runner=self.fail_runner), 64)
@@ -91,7 +109,9 @@ class GatewayRequestTests(unittest.TestCase):
 
     def test_installed_package_mode_symlink_and_link_count_checks(self) -> None:
         name = "homelab_ops_gateway_compat_for_permissions"
-        loader = importlib.machinery.SourceFileLoader(name, str(ENTRYPOINTS / "homelab-ops-gateway"))
+        loader = importlib.machinery.SourceFileLoader(
+            name, str(ENTRYPOINTS / "homelab-ops-gateway")
+        )
         spec = importlib.util.spec_from_loader(name, loader)
         wrapper = importlib.util.module_from_spec(spec)
         assert spec.loader is not None
@@ -127,18 +147,6 @@ class GatewayRequestTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 wrapper.validate_package_tree(package, root_uid=os.getuid(), root_gid=os.getgid())
 
-    def test_legacy_shared_module_path_remains_a_compatibility_facade(self) -> None:
-        path = ENTRYPOINTS / "homelab_ops_common.py"
-        spec = importlib.util.spec_from_loader(
-            "homelab_ops_common_compat",
-            importlib.machinery.SourceFileLoader("homelab_ops_common_compat", str(path)),
-        )
-        module = importlib.util.module_from_spec(spec)
-        assert spec.loader is not None
-        spec.loader.exec_module(module)
-        self.assertIs(module.ApprovalError, common.ApprovalError)
-        self.assertIs(module.consume_restart_approval, common.consume_restart_approval)
-
     @staticmethod
     def fail_runner(*args, **kwargs):
         raise AssertionError("malformed request must not execute a command")
@@ -150,7 +158,10 @@ class GatewayRequestTests(unittest.TestCase):
             calls.append((argv, kwargs))
             return subprocess.CompletedProcess(argv, 0)
 
-        self.assertEqual(gateway.dispatch(["status"], caller="agent", command_runner=runner), 0)
+        self.assertEqual(
+            gateway.dispatch(["status"], caller="agent", command_runner=runner, policy=self.policy),
+            0,
+        )
         argv, kwargs = calls[0]
         self.assertEqual(argv, ["/usr/local/sbin/homelab-inventory"])
         self.assertIs(kwargs["shell"], False)
@@ -159,36 +170,95 @@ class GatewayRequestTests(unittest.TestCase):
         self.assertIs(kwargs["stdin"], subprocess.DEVNULL)
 
     def test_status_failure_and_timeout_fail_closed(self) -> None:
-        failed = lambda argv, **kwargs: subprocess.CompletedProcess(argv, 9)
-        timed_out = lambda argv, **kwargs: (_ for _ in ()).throw(subprocess.TimeoutExpired(argv, 1))
+        def failed(argv, **kwargs):
+            return subprocess.CompletedProcess(argv, 9)
+
+        def timed_out(argv, **kwargs):
+            raise subprocess.TimeoutExpired(argv, 1)
+
         with contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(gateway.dispatch(["status"], command_runner=failed), 9)
-            self.assertEqual(gateway.dispatch(["status"], command_runner=timed_out), 124)
+            self.assertEqual(
+                gateway.dispatch(
+                    ["status"], caller="agent", command_runner=failed, policy=self.policy
+                ),
+                9,
+            )
+            self.assertEqual(
+                gateway.dispatch(
+                    ["status"], caller="agent", command_runner=timed_out, policy=self.policy
+                ),
+                124,
+            )
+
+    def test_policy_denial_prevents_status_execution(self) -> None:
+        policy = {
+            "schema": 2,
+            "revision": "deny-test",
+            "principals": {"agent": {"id": "unix:agent", "roles": ["blocked"]}},
+            "roles": {
+                "blocked": {
+                    "permissions": [
+                        {
+                            "effect": "deny",
+                            "operation": "status",
+                            "resource": "host:local",
+                            "require_approval": False,
+                        }
+                    ]
+                }
+            },
+            "services": {},
+        }
+        with contextlib.redirect_stderr(io.StringIO()):
+            result = gateway.dispatch(
+                ["status"], caller="agent", command_runner=self.fail_runner, policy=policy
+            )
+        self.assertEqual(result, 77)
 
     def test_policy_default_path_is_selected_at_call_time(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             policy_path = Path(temp) / "policy.json"
-            policy_path.write_text(json.dumps({
-                "schema": 1,
-                "operations": ["status", "restart"],
-                "services": {"jellyfin": {
-                    "container_name": "jellyfin",
-                    "image": "jellyfin/jellyfin:latest",
-                    "compose_project": "jellyfin",
-                    "compose_service": "jellyfin",
-                }},
-            }))
-            with patch.object(gateway, "POLICY_PATH", policy_path), patch.object(gateway, "check_protected_path") as check:
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "schema": 1,
+                        "operations": ["status", "restart"],
+                        "services": {
+                            "jellyfin": {
+                                "container_name": "jellyfin",
+                                "image": "jellyfin/jellyfin:latest",
+                                "compose_project": "jellyfin",
+                                "compose_service": "jellyfin",
+                            }
+                        },
+                    }
+                )
+            )
+            policy_path.chmod(0o640)
+            with (
+                patch.object(gateway, "POLICY_PATH", policy_path),
+                patch.object(gateway, "check_protected_path") as check,
+            ):
                 policy = gateway.load_server_policy()
             check.assert_called_once_with(policy_path, file_mode=0o640)
-            self.assertEqual(policy["schema"], 1)
+            self.assertEqual(policy["schema"], 2)
 
 
 class ApprovalTests(unittest.TestCase):
-    policy = {"schema": 1, "operations": ["status", "restart"], "services": {
-        "jellyfin": {"container_name": "jellyfin", "image": "jellyfin/jellyfin:latest",
-                     "compose_project": "jellyfin", "compose_service": "jellyfin"}}}
+    policy = {
+        "schema": 1,
+        "operations": ["status", "restart"],
+        "services": {
+            "jellyfin": {
+                "container_name": "jellyfin",
+                "image": "jellyfin/jellyfin:latest",
+                "compose_project": "jellyfin",
+                "compose_service": "jellyfin",
+            }
+        },
+    }
     identity = "a" * 64 + "|/jellyfin|jellyfin/jellyfin:latest|jellyfin|jellyfin|running"
+
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -210,7 +280,13 @@ class ApprovalTests(unittest.TestCase):
         self.addCleanup(self.consume_patch.stop)
         self.now = 2_000_000_000
 
-    def put_approval(self, *, expires_at: int | None = None, operation: str = "restart", service: str = "jellyfin") -> None:
+    def put_approval(
+        self,
+        *,
+        expires_at: int | None = None,
+        operation: str = "restart",
+        service: str = "jellyfin",
+    ) -> None:
         record = {
             "schema": 1,
             "operation": operation,
@@ -223,12 +299,16 @@ class ApprovalTests(unittest.TestCase):
         self.pending.chmod(0o600)
 
     def consumer(self):
-        return lambda requester: common.consume_restart_approval(requester=requester, now=self.now, root_uid=os.getuid())
+        return lambda requester: common.consume_restart_approval(
+            requester=requester, now=self.now, root_uid=os.getuid()
+        )
 
     def test_missing_approval_does_not_run_docker(self) -> None:
         with contextlib.redirect_stderr(io.StringIO()):
             result = gateway.dispatch(
-                ["restart", "jellyfin"], command_runner=GatewayRequestTests.fail_runner,
+                ["restart", "jellyfin"],
+                caller="agent",
+                command_runner=GatewayRequestTests.fail_runner,
                 approval_consumer=self.consumer(),
                 policy=self.policy,
             )
@@ -238,7 +318,9 @@ class ApprovalTests(unittest.TestCase):
         self.put_approval(expires_at=self.now)
         with contextlib.redirect_stderr(io.StringIO()):
             result = gateway.dispatch(
-                ["restart", "jellyfin"], command_runner=GatewayRequestTests.fail_runner,
+                ["restart", "jellyfin"],
+                caller="agent",
+                command_runner=GatewayRequestTests.fail_runner,
                 approval_consumer=self.consumer(),
                 policy=self.policy,
             )
@@ -250,7 +332,9 @@ class ApprovalTests(unittest.TestCase):
         self.put_approval(service="pihole")
         with contextlib.redirect_stderr(io.StringIO()):
             result = gateway.dispatch(
-                ["restart", "jellyfin"], command_runner=GatewayRequestTests.fail_runner,
+                ["restart", "jellyfin"],
+                caller="agent",
+                command_runner=GatewayRequestTests.fail_runner,
                 approval_consumer=self.consumer(),
                 policy=self.policy,
             )
@@ -260,14 +344,18 @@ class ApprovalTests(unittest.TestCase):
     def test_approval_is_bound_to_requester(self) -> None:
         self.put_approval()
         with self.assertRaises(common.ApprovalError):
-            common.consume_restart_approval(requester="other-user", now=self.now, root_uid=os.getuid())
+            common.consume_restart_approval(
+                requester="other-user", now=self.now, root_uid=os.getuid()
+            )
 
     def test_file_permissions_are_checked_before_approval_use(self) -> None:
         self.put_approval()
         self.pending.chmod(0o644)
         with contextlib.redirect_stderr(io.StringIO()):
             result = gateway.dispatch(
-                ["restart", "jellyfin"], command_runner=GatewayRequestTests.fail_runner,
+                ["restart", "jellyfin"],
+                caller="agent",
+                command_runner=GatewayRequestTests.fail_runner,
                 approval_consumer=self.consumer(),
                 policy=self.policy,
             )
@@ -285,16 +373,26 @@ class ApprovalTests(unittest.TestCase):
             return subprocess.CompletedProcess(argv, 0)
 
         self.assertEqual(
-            gateway.dispatch(["restart", "jellyfin"], caller="agent", command_runner=runner,
-                             approval_consumer=self.consumer(), policy=self.policy),
+            gateway.dispatch(
+                ["restart", "jellyfin"],
+                caller="agent",
+                command_runner=runner,
+                approval_consumer=self.consumer(),
+                policy=self.policy,
+            ),
             0,
         )
         inspect_argv = calls[0][0]
-        self.assertEqual(inspect_argv[:5], ["/usr/bin/docker", "container", "inspect", "--format", gateway.IDENTITY_FORMAT])
+        self.assertEqual(
+            inspect_argv[:5],
+            ["/usr/bin/docker", "container", "inspect", "--format", gateway.IDENTITY_FORMAT],
+        )
         self.assertEqual(inspect_argv[-1], "jellyfin")
         self.assertNotIn("--type", inspect_argv)
         argv, kwargs, pending_existed_at_execution = calls[1]
-        self.assertEqual(argv, ["/usr/bin/docker", "container", "restart", "--time", "10", "a" * 64])
+        self.assertEqual(
+            argv, ["/usr/bin/docker", "container", "restart", "--time", "10", "a" * 64]
+        )
         self.assertFalse(pending_existed_at_execution)
         self.assertIs(kwargs["shell"], False)
         self.assertEqual(kwargs["env"], gateway.FIXED_ENV)
@@ -304,29 +402,58 @@ class ApprovalTests(unittest.TestCase):
     def test_container_identity_and_compose_owner_must_match_policy(self) -> None:
         self.put_approval()
         calls = []
+
         def runner(argv, **kwargs):
             calls.append(argv)
-            return subprocess.CompletedProcess(argv, 0, stdout=self.identity.replace("|jellyfin|jellyfin|", "|another-project|another-service|"))
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                stdout=self.identity.replace(
+                    "|jellyfin|jellyfin|", "|another-project|another-service|"
+                ),
+            )
+
         with contextlib.redirect_stderr(io.StringIO()):
-            result = gateway.dispatch(["restart", "jellyfin"], caller="agent", command_runner=runner,
-                                      approval_consumer=self.consumer(), policy=self.policy)
+            result = gateway.dispatch(
+                ["restart", "jellyfin"],
+                caller="agent",
+                command_runner=runner,
+                approval_consumer=self.consumer(),
+                policy=self.policy,
+            )
         self.assertEqual(result, 77)
         self.assertEqual(len(calls), 1)
         self.assertIn("inspect", calls[0])
 
     def test_approval_cannot_be_reused(self) -> None:
         self.put_approval()
+
         def runner(argv, **kwargs):
             if "inspect" in argv:
                 return subprocess.CompletedProcess(argv, 0, stdout=self.identity)
             return subprocess.CompletedProcess(argv, 0)
+
         consumer = self.consumer()
-        self.assertEqual(gateway.dispatch(["restart", "jellyfin"], caller="agent", command_runner=runner,
-                                          approval_consumer=consumer, policy=self.policy), 0)
+        self.assertEqual(
+            gateway.dispatch(
+                ["restart", "jellyfin"],
+                caller="agent",
+                command_runner=runner,
+                approval_consumer=consumer,
+                policy=self.policy,
+            ),
+            0,
+        )
         with contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(gateway.dispatch(["restart", "jellyfin"],
-                                              command_runner=GatewayRequestTests.fail_runner,
-                                              approval_consumer=consumer, policy=self.policy), 77)
+            self.assertEqual(
+                gateway.dispatch(
+                    ["restart", "jellyfin"],
+                    command_runner=GatewayRequestTests.fail_runner,
+                    approval_consumer=consumer,
+                    policy=self.policy,
+                ),
+                77,
+            )
 
     def test_concurrent_requests_can_consume_only_once(self) -> None:
         self.put_approval()
@@ -336,7 +463,9 @@ class ApprovalTests(unittest.TestCase):
         def consume():
             barrier.wait()
             try:
-                common.consume_restart_approval(requester="agent", now=self.now, root_uid=os.getuid())
+                common.consume_restart_approval(
+                    requester="agent", now=self.now, root_uid=os.getuid()
+                )
                 outcomes.append("consumed")
             except common.ApprovalError:
                 outcomes.append("denied")
@@ -351,26 +480,51 @@ class ApprovalTests(unittest.TestCase):
 
     def test_restart_timeout_and_command_failure_are_reported(self) -> None:
         self.put_approval()
-        timeout = lambda argv, **kwargs: (_ for _ in ()).throw(subprocess.TimeoutExpired(argv, 1))
+
+        def timeout(argv, **kwargs):
+            raise subprocess.TimeoutExpired(argv, 1)
+
         with contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(gateway.dispatch(["restart", "jellyfin"], caller="agent", command_runner=timeout,
-                                              approval_consumer=self.consumer(), policy=self.policy), 124)
+            self.assertEqual(
+                gateway.dispatch(
+                    ["restart", "jellyfin"],
+                    caller="agent",
+                    command_runner=timeout,
+                    approval_consumer=self.consumer(),
+                    policy=self.policy,
+                ),
+                124,
+            )
         self.put_approval()
+
         def failed(argv, **kwargs):
             if "inspect" in argv:
                 return subprocess.CompletedProcess(argv, 0, stdout=self.identity)
             return subprocess.CompletedProcess(argv, 125)
+
         with contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(gateway.dispatch(["restart", "jellyfin"], caller="agent", command_runner=failed,
-                                              approval_consumer=self.consumer(), policy=self.policy), 125)
+            self.assertEqual(
+                gateway.dispatch(
+                    ["restart", "jellyfin"],
+                    caller="agent",
+                    command_runner=failed,
+                    approval_consumer=self.consumer(),
+                    policy=self.policy,
+                ),
+                125,
+            )
 
     def test_admin_approval_creation_is_fixed_and_refuses_replacement(self) -> None:
-        with patch.object(common, "check_approval_directories"), \
-             patch.object(common, "APPROVAL_ROOT", self.pending_dir.parent), \
-             patch.object(common, "PENDING_DIR", self.pending_dir), \
-             patch.object(common, "CONSUMED_DIR", self.consumed_dir), \
-             patch.object(common, "PENDING_RESTART", self.pending):
-            created = common.create_restart_approval(requester="agent", now=self.now, root_uid=os.getuid(), root_gid=os.getgid())
+        with (
+            patch.object(common, "check_approval_directories"),
+            patch.object(common, "APPROVAL_ROOT", self.pending_dir.parent),
+            patch.object(common, "PENDING_DIR", self.pending_dir),
+            patch.object(common, "CONSUMED_DIR", self.consumed_dir),
+            patch.object(common, "PENDING_RESTART", self.pending),
+        ):
+            created = common.create_restart_approval(
+                requester="agent", now=self.now, root_uid=os.getuid(), root_gid=os.getgid()
+            )
             record = json.loads(created.read_text())
             self.assertEqual(record["operation"], "restart")
             self.assertEqual(record["service"], "jellyfin")
@@ -378,7 +532,9 @@ class ApprovalTests(unittest.TestCase):
             self.assertEqual(record["expires_at"], self.now + common.APPROVAL_TTL_SECONDS)
             self.assertEqual(stat.S_IMODE(created.stat().st_mode), 0o600)
             with self.assertRaises(common.ApprovalError):
-                common.create_restart_approval(requester="agent", now=self.now, root_uid=os.getuid(), root_gid=os.getgid())
+                common.create_restart_approval(
+                    requester="agent", now=self.now, root_uid=os.getuid(), root_gid=os.getgid()
+                )
 
     def test_permission_validator_rejects_writable_or_wrong_owner_paths(self) -> None:
         secure_dir = types.SimpleNamespace(st_uid=0, st_mode=stat.S_IFDIR | 0o700)
@@ -398,7 +554,9 @@ class ApprovalTests(unittest.TestCase):
             )
 
     def test_server_policy_permission_failure_is_denied(self) -> None:
-        with patch.object(gateway, "check_protected_path", side_effect=common.ApprovalError("unsafe")):
+        with patch.object(
+            gateway, "check_protected_path", side_effect=common.ApprovalError("unsafe")
+        ):
             with self.assertRaises(common.ApprovalError):
                 gateway.load_server_policy(Path("/untrusted/policy.json"))
 

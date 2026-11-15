@@ -42,7 +42,9 @@ def validate_component(
         raise ApprovalError("invalid protected path check")
 
 
-def check_protected_path(path: Path, *, root_uid: int = 0, file_mode: int | None = None) -> os.stat_result:
+def check_protected_path(
+    path: Path, *, root_uid: int = 0, file_mode: int | None = None
+) -> os.stat_result:
     """Require every path component to be root-owned and non-writable by others."""
     absolute = path.absolute()
     chain = list(reversed((absolute, *absolute.parents)))
@@ -52,7 +54,9 @@ def check_protected_path(path: Path, *, root_uid: int = 0, file_mode: int | None
             info = component.lstat()
         except OSError as error:
             raise ApprovalError("protected path unavailable") from error
-        expected = "parent" if component != absolute else ("directory" if file_mode is None else "file")
+        expected = (
+            "parent" if component != absolute else ("directory" if file_mode is None else "file")
+        )
         validate_component(info, root_uid=root_uid, expected=expected, file_mode=file_mode)
         if component == absolute:
             final_info = info
@@ -170,7 +174,13 @@ def create_restart_approval(
         "nonce": uuid.uuid4().hex,
     }
     temporary_path = PENDING_DIR / ("." + approval["nonce"] + ".tmp")
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
     try:
         descriptor = os.open(temporary_path, flags, 0o600)
     except OSError as error:

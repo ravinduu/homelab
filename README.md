@@ -10,23 +10,36 @@ server-side boundary must authenticate the transport principal, evaluate
 protected policy, apply any required human approval, and execute only bounded
 operations. The client is never the authorization boundary.
 
+The [product goal and v1.0 success criteria](specs/product/vision.md) describe
+the complete inspect → explain → recommend → approve → execute → verify →
+audit workflow. The seven phase releases and current status are in the
+[roadmap](specs/product/roadmap.md).
+
 ## Current status
 
-- Phase 0 specifications and local package-layout migration are complete;
-  `specs/` records the architecture and compatibility boundary.
-- Phase 1 restricted discovery and sanitized inventory are implemented and
-  documented; tests exist for the local inventory wrapper.
-- Phase 2 gateway, approval helper, bootstrap installer, and regression tests
-  exist. The November 14 operations record reports installed server behavior
-  for status and approved Jellyfin restarts. This repository inspection did
-  not independently contact the server; see the phase specification for
-  evidence limits.
-- Phase 3 and later are planned. No generalized policy engine is implemented.
+Phases 0–3 contain local implementation and prior operational reports, but
+remain **Verification Pending** under the current production Definition of
+Done. No CI run or current live-server verification is claimed here. Phase 3
+is implemented locally; its architecture and quality assessment is in
+[`reports/phase-03-quality-assessment.md`](reports/phase-03-quality-assessment.md).
+Phases 4–7 are planned.
 
 ## Development
 
 Read [`AGENTS.md`](AGENTS.md), then [`specs/README.md`](specs/README.md) and the
-active phase documents before changing implementation. Existing local checks:
+active phase documents before changing implementation. The quality toolchain
+is documented in [`specs/product/quality-standards.md`](specs/product/quality-standards.md).
+Create an ignored project-local environment with Python 3.11, install the
+pinned development tools, then run the checks:
+
+```sh
+python3.11 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements-quality.txt
+make quality
+```
+
+The standard-library suite can also run without the optional quality tools:
 
 ```sh
 python3 -m unittest discover -s tests -v
@@ -39,6 +52,8 @@ test shortcut.
 ## Repository map
 
 - `specs/`: product, architecture, phases, and development templates.
+- `pyproject.toml`, `requirements-quality.txt`, `Makefile`: package metadata and
+  local quality gates; the package declares no runtime dependencies.
 - `src/homelab_ops/`: Python client, gateway, and approval implementation.
 - `scripts/`: operator CLI, read-only shell inventory wrapper, and administrator
   bootstrap installer.
@@ -46,6 +61,8 @@ test shortcut.
   legacy privileged command paths.
 - [Canary install runbook](docs/operations/homelab-ops-canary.md): separate
   first-install namespace for trying the new package beside the current one.
+- [Phase 3 canary development test](docs/operations/phase-03-policy-engine-dev-test.md):
+  local checks and administrator-led policy evaluation on the existing canary.
 - `infra/`: local policy proposals and sanitized Compose snapshots, not
   implicitly deployable releases.
 - `docs/`, `reports/`: operational documentation and evidence-based reviews.
@@ -54,5 +71,7 @@ test shortcut.
 
 The local implementation migration and compatibility boundary are documented
 in [`specs/architecture/migration.md`](specs/architecture/migration.md).
-Installed command paths remain stable; the new package layout has not been
-deployed to the server.
+The user-reported canary installation is separate from the production gateway;
+production package migration and Phase 3 schema 2 installation are not claimed
+by this repository status. Existing installed command paths remain a
+transition constraint until a reviewed migration explicitly changes them.

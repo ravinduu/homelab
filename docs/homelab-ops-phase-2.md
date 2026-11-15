@@ -80,4 +80,4 @@ The privileged gateway itself is designed to run as a protected root-owned insta
 
 After the November 14 patch, the gateway-specific suite passed all 17 tests locally. On the server, the administrator confirmed successful status and restart outcomes in the `homelab-ops` journal. The restart at 19:19:47 followed a separately approved request; the 19:19:33 unapproved request was denied. These are the recorded runtime results; no new sudoers rule or installer run was performed.
 
-See [the administrator installation checklist](homelab-ops-installation.md) for the original first-install procedure and [the Phase 3 policy-engine specification](../specs/phases/phase-03-policy-engine/specification.md) for the proposed next phase.
+See [the administrator installation checklist](homelab-ops-installation.md) for the original first-install procedure and [the Phase 3 policy-engine specification](../specs/phases/phase-03-policy-engine/spec.md) for the proposed next phase.

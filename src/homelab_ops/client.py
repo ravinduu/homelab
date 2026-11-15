@@ -36,7 +36,9 @@ class Request:
 
 def parse_request(argv: list[str]) -> tuple[Request, bool]:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--send", action="store_true", help="send request over SSH (default: print only)")
+    parser.add_argument(
+        "--send", action="store_true", help="send request over SSH (default: print only)"
+    )
     sub = parser.add_subparsers(dest="operation", required=True)
     sub.add_parser("status", help="request allowlisted service status")
     restart = sub.add_parser("restart", help="request restart of one allowlisted service")

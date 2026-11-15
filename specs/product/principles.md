@@ -18,8 +18,10 @@
    compatibility, integrity checks, and administrator-controlled promotion.
 9. **Fail closed:** malformed, stale, ambiguous, unavailable, or tampered
    policy/approval state cannot authorize execution.
-10. **Backward compatibility:** preserve installed paths and client contracts
-    until a migration has compatibility tests and an explicit release plan.
+10. **Justified compatibility:** preserve installed behavior only for a
+    documented requirement or controlled production transition; remove
+    obsolete internal paths when their consumers are migrated. See
+    [`compatibility-policy.md`](compatibility-policy.md).
 11. **Modular adapters:** infrastructure-specific behavior remains behind
     narrow interfaces; adapters cannot bypass identity, policy, audit, or
     approval controls.

@@ -15,6 +15,7 @@ PACKAGE_FILES = (
     "approvals/store.py",
     "gateway/__init__.py",
     "gateway/core.py",
+    "gateway/policy.py",
     "gateway/approval_cli.py",
 )
 

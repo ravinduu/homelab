@@ -6,7 +6,7 @@
 |---|---|---|---|
 | <ID> | <specific check> | Not run | <path> |
 
-## Unit and integration tests
+## Unit, integration, installed-layout, and end-to-end tests
 
 Commands, environment, results, and failures.
 
@@ -28,4 +28,9 @@ List untested assumptions, unavailable evidence, and residual risk.
 
 ## Completion decision
 
-Accepted | Rejected | Incomplete, with reviewer and date.
+Planned | Design Approved | In Development | Code Complete |
+Verification Pending | Release Ready | Released, with reviewer and date.
+
+Release Ready requires all applicable quality-standards evidence. Released
+requires authorized runtime verification, or a reviewed non-deployment phase
+to record why runtime evidence is not applicable.

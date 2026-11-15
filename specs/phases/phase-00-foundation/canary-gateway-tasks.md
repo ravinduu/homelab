@@ -1,6 +1,8 @@
 # Side-by-side gateway canary: tasks
 
-**Status:** Local tooling and runbook complete. No server install performed.
+**Status:** Local tooling and runbook implemented. Canary installation and
+verification were reported by the user; phase release evidence is still
+Verification Pending under the production Definition of Done.
 
 1. [x] Define disjoint paths, same-host risk, exact request set, and rollback.
 2. [x] Add canary gateway and approval launchers that load the local package
@@ -23,4 +25,6 @@
   both client scripts; cache output was directed to `/tmp`.
 - 59 Markdown files checked; all local links resolve.
 - `git diff --check` passed.
-- No server connection, installation, or production operation was performed.
+- The user reported that the canary change was committed and verified on the
+  server. This standards review did not reconnect or independently recheck it;
+  no production gateway operation is claimed here.

@@ -24,12 +24,14 @@ approval, calls a bounded adapter, and records decisions and outcomes.
 Authentication, principal mapping, authorization, approval, and execution are
 distinct checks.
 
-The current tree contains scripts, shared approval primitives, static JSON
-policies, client convenience validation, and standard-library tests. Gateway
-requests are exactly `status` or `restart jellyfin`. Status delegates to the
-approved inventory wrapper. Restart consumes a one-use approval, validates
-protected policy and live container identity, then restarts the verified ID.
-This is not a generalized API or policy engine.
+The current tree contains a `src/homelab_ops/` Python package, operator and
+installer scripts, a bounded inventory wrapper, client convenience validation,
+schema 1 and schema 2 policy paths, and standard-library tests. Gateway
+requests remain narrowly `status` or `restart jellyfin`. Status delegates to
+the inventory wrapper. Restart consumes a one-use approval, validates policy
+and live container identity, then restarts the verified ID. Local schema 2
+policy evaluation exists, but installed schema 2 behavior is not verified.
+This is not yet the complete product workflow or a general adapter API.
 
 ```mermaid
 sequenceDiagram

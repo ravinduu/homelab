@@ -12,7 +12,8 @@ registered actor; policy determines permitted operations; human approval
 confirms a specific sensitive request. Audit correlates these without storing
 secrets.
 
-Phase 3 must define stable principal identifiers, credential ownership,
-shared-account treatment, mapping lifecycle, revocation, and ambiguous mapping
-behavior. Phase 4 is expected to introduce per-agent credentials/isolation.
-Per-agent authorization is not a current capability.
+Phase 3 defines the compatibility principal `unix:agent`, resolved from the
+trusted `SUDO_USER` supplied to the root gateway and mapped by protected policy.
+This represents the shared Unix account only; it does not distinguish agents,
+humans, or automation using that account. Unknown accounts deny. Credential
+ownership, revocation, and per-credential mapping remain Phase 4 work.

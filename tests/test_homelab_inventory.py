@@ -11,7 +11,6 @@ import tempfile
 import textwrap
 import unittest
 
-
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "scripts" / "homelab-inventory"
 
@@ -120,9 +119,7 @@ class InventoryTests(unittest.TestCase):
         shutil.rmtree(self.tmp)
 
     def run_script(self, *args: str) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [str(self.script), *args], capture_output=True, text=True, timeout=30
-        )
+        return subprocess.run([str(self.script), *args], capture_output=True, text=True, timeout=30)
 
     def set_ids(self, count: int) -> None:
         self.ids.write_text("".join(f"{number:064x}\n" for number in range(1, count + 1)))

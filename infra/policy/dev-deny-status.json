@@ -1,0 +1,36 @@
+{
+  "schema": 2,
+  "revision": "phase3-deny-status-test",
+  "principals": {
+    "agent": {
+      "id": "unix:agent",
+      "roles": ["operator"]
+    }
+  },
+  "roles": {
+    "operator": {
+      "permissions": [
+        {
+          "effect": "deny",
+          "operation": "status",
+          "resource": "host:local",
+          "require_approval": false
+        },
+        {
+          "effect": "allow",
+          "operation": "restart",
+          "resource": "service:jellyfin",
+          "require_approval": true
+        }
+      ]
+    }
+  },
+  "services": {
+    "jellyfin": {
+      "container_name": "jellyfin",
+      "image": "jellyfin/jellyfin:latest",
+      "compose_project": "jellyfin",
+      "compose_service": "jellyfin"
+    }
+  }
+}

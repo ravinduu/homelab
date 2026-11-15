@@ -29,3 +29,28 @@ Enroll hosts incrementally with per-host compatibility checks. Fleet orchestrati
 ## Open questions
 
 Central control-plane location and trust, offline behavior, policy ownership, fleet key hierarchy, data retention, and consistency model.
+
+## Vertical slice and release evidence
+
+- **User-visible capability:** An operator can address at least two separately
+  authenticated hosts and see each host's independent result and policy state.
+- **Functional scope:** Start with read-only inventory coordination. Enrollment,
+  policy distribution, and mutations are separate increments with separate
+  designs and approvals.
+- **Security invariants:** Per-host authentication and policy remain
+  authoritative; one host compromise grants no fleet authority; failures and
+  partial results are explicit; no false global success.
+- **Architecture/refactoring:** Reuse the single-host contract and adapter
+  model. Refactor only where needed for host-scoped identity/correlation; do
+  not duplicate policy into an implicit central authority.
+- **Tests:** Multi-host simulation for host isolation, identity spoof/replay,
+  unavailable host, partial failure, coordinator restart, drift, and recovery;
+  end-to-end tests across at least two disposable hosts.
+- **Installation:** Enroll hosts independently with pinned host identity,
+  unique credentials, explicit policy revision, and removal procedure.
+- **Runtime verification:** Verify successful and unreachable hosts separately,
+  per-host audit correlation, policy drift detection, and no cross-host effect.
+- **Rollback:** Disable coordinator capability without removing local gateway
+  enforcement; roll back test policy per host and verify isolation.
+- **Acceptance / Definition of Done:** Complete all quality-standard evidence
+  in a multi-host environment. Single-host tests do not release fleet support.

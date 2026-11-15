@@ -8,7 +8,6 @@ import sys
 import syslog
 from pathlib import Path
 
-
 from ..approvals.store import ApprovalError, check_protected_path, create_restart_approval
 
 syslog.openlog("homelab-ops-approval", syslog.LOG_PID, syslog.LOG_AUTHPRIV)
@@ -40,10 +39,15 @@ def main(argv: list[str] | None = None) -> int:
             check_protected_path(module_path, file_mode=0o640)
         approval_path = create_restart_approval(requester="agent")
     except ApprovalError as error:
-        syslog.syslog(syslog.LOG_AUTHPRIV | syslog.LOG_WARNING, "homelab-ops approval creation denied")
+        syslog.syslog(
+            syslog.LOG_AUTHPRIV | syslog.LOG_WARNING, "homelab-ops approval creation denied"
+        )
         print(f"homelab-ops: {error}", file=sys.stderr)
         return 1
-    syslog.syslog(syslog.LOG_AUTHPRIV | syslog.LOG_NOTICE, "homelab-ops administrator created jellyfin restart approval")
+    syslog.syslog(
+        syslog.LOG_AUTHPRIV | syslog.LOG_NOTICE,
+        "homelab-ops administrator created jellyfin restart approval",
+    )
     print(f"Single-use restart approval created; valid for 120 seconds: {approval_path}")
     return 0
 

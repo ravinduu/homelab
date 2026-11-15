@@ -64,11 +64,11 @@ From the repository root, run the local checks:
     python3 -m unittest discover -s tests -v
     sh -n scripts/install-homelab-ops-canary.sh
 
-The canary installer stages exactly ten files: the installer, two canary
-entrypoints, server policy, and six server package modules. It does not stage
+The canary installer stages exactly eleven files: the installer, two canary
+entrypoints, server policy, and seven server package modules. It does not stage
 the requester CLI. Calculate the local hashes:
 
-    shasum -a 256       scripts/install-homelab-ops-canary.sh       packaging/entrypoints/homelab-ops-canary       packaging/entrypoints/homelab-ops-approve-restart-canary       infra/policy/server-policy.json       src/homelab_ops/__init__.py       src/homelab_ops/approvals/__init__.py       src/homelab_ops/approvals/store.py       src/homelab_ops/gateway/__init__.py       src/homelab_ops/gateway/core.py       src/homelab_ops/gateway/approval_cli.py
+    shasum -a 256       scripts/install-homelab-ops-canary.sh       packaging/entrypoints/homelab-ops-canary       packaging/entrypoints/homelab-ops-approve-restart-canary       infra/policy/server-policy.json       src/homelab_ops/__init__.py       src/homelab_ops/approvals/__init__.py       src/homelab_ops/approvals/store.py       src/homelab_ops/gateway/__init__.py       src/homelab_ops/gateway/core.py       src/homelab_ops/gateway/policy.py       src/homelab_ops/gateway/approval_cli.py
 
 ## Transfer and stage the files
 
@@ -86,6 +86,7 @@ local repository root:
     scp src/homelab_ops/approvals/store.py home-server-agent:/home/agent/homelab-ops-canary-upload/homelab_ops/approvals/
     scp src/homelab_ops/gateway/__init__.py home-server-agent:/home/agent/homelab-ops-canary-upload/homelab_ops/gateway/
     scp src/homelab_ops/gateway/core.py home-server-agent:/home/agent/homelab-ops-canary-upload/homelab_ops/gateway/
+    scp src/homelab_ops/gateway/policy.py home-server-agent:/home/agent/homelab-ops-canary-upload/homelab_ops/gateway/
     scp src/homelab_ops/gateway/approval_cli.py home-server-agent:/home/agent/homelab-ops-canary-upload/homelab_ops/gateway/
 
 An administrator must then use their authorized server console/account to
@@ -107,11 +108,12 @@ to copy into protected staging):
     sudo install -o root -g root -m 0600 /home/agent/homelab-ops-canary-upload/homelab_ops/approvals/store.py /root/homelab-ops-canary/homelab_ops/approvals/store.py
     sudo install -o root -g root -m 0600 /home/agent/homelab-ops-canary-upload/homelab_ops/gateway/__init__.py /root/homelab-ops-canary/homelab_ops/gateway/__init__.py
     sudo install -o root -g root -m 0600 /home/agent/homelab-ops-canary-upload/homelab_ops/gateway/core.py /root/homelab-ops-canary/homelab_ops/gateway/core.py
+    sudo install -o root -g root -m 0600 /home/agent/homelab-ops-canary-upload/homelab_ops/gateway/policy.py /root/homelab-ops-canary/homelab_ops/gateway/policy.py
     sudo install -o root -g root -m 0600 /home/agent/homelab-ops-canary-upload/homelab_ops/gateway/approval_cli.py /root/homelab-ops-canary/homelab_ops/gateway/approval_cli.py
 
 Compare staged hashes with the local values before running the installer:
 
-    sudo sha256sum /root/homelab-ops-canary/install-homelab-ops-canary.sh /root/homelab-ops-canary/homelab-ops-canary /root/homelab-ops-canary/homelab-ops-approve-restart-canary /root/homelab-ops-canary/server-policy.json /root/homelab-ops-canary/homelab_ops/__init__.py /root/homelab-ops-canary/homelab_ops/approvals/__init__.py /root/homelab-ops-canary/homelab_ops/approvals/store.py /root/homelab-ops-canary/homelab_ops/gateway/__init__.py /root/homelab-ops-canary/homelab_ops/gateway/core.py /root/homelab-ops-canary/homelab_ops/gateway/approval_cli.py
+    sudo sha256sum /root/homelab-ops-canary/install-homelab-ops-canary.sh /root/homelab-ops-canary/homelab-ops-canary /root/homelab-ops-canary/homelab-ops-approve-restart-canary /root/homelab-ops-canary/server-policy.json /root/homelab-ops-canary/homelab_ops/__init__.py /root/homelab-ops-canary/homelab_ops/approvals/__init__.py /root/homelab-ops-canary/homelab_ops/approvals/store.py /root/homelab-ops-canary/homelab_ops/gateway/__init__.py /root/homelab-ops-canary/homelab_ops/gateway/core.py /root/homelab-ops-canary/homelab_ops/gateway/policy.py /root/homelab-ops-canary/homelab_ops/gateway/approval_cli.py
 
 Stop on any mismatch. After the copy and comparison, remove the temporary
 upload directory as `agent` or have the administrator remove it. The installer
@@ -127,13 +129,14 @@ asking for confirmation. The staged files must have these paths:
     /root/homelab-ops-canary/homelab_ops/approvals/store.py
     /root/homelab-ops-canary/homelab_ops/gateway/__init__.py
     /root/homelab-ops-canary/homelab_ops/gateway/core.py
+    /root/homelab-ops-canary/homelab_ops/gateway/policy.py
     /root/homelab-ops-canary/homelab_ops/gateway/approval_cli.py
 
 The commands above set the stage and package directories to root:root 0700,
 the installer to root:root 0700, and the other source files to root:root 0600.
 The installer checks the exact file set, owners, modes, links, active inventory
 rule, agent group membership, policy schema, and live Jellyfin identity. It
-prints target-side hashes before changing anything. Compare all ten against
+prints target-side hashes before changing anything. Compare all eleven against
 the local reviewed values and stop on any mismatch.
 
 ## Install the canary
@@ -143,7 +146,7 @@ destination is absent, the administrator runs:
 
     sudo /root/homelab-ops-canary/install-homelab-ops-canary.sh
 
-Compare the installer's ten hashes with the local values. Type the exact phrase
+Compare the installer's eleven hashes with the local values. Type the exact phrase
 INSTALL CANARY only after they match. The installer validates the existing
 sudoers config and live Jellyfin mapping, installs only canary paths, then
 validates a separate exact-argument sudoers drop-in with visudo. If it fails,

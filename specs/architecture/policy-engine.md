@@ -10,10 +10,17 @@ principal, operation ID, typed resource, constraints, context, and policy
 revision. Output: allow/deny, obligations (including human approval), stable
 reason code, and policy revision for audit. Adapters cannot bypass the result.
 
-Phase 3 will specify role/permission composition, scope, deny precedence,
-constraints, schema evolution, validation, review, and policy integrity.
-Updates require authenticated administrator promotion. No Phase 3 engine or
-schema is implemented here.
+Phase 3 implements schema 2 locally: exact Unix-account-to-principal mapping,
+role composition, exact operation/resource permissions, explicit-deny
+precedence, and approval obligations. Unknown mappings and missing matches
+deny. The target runtime has one canonical schema: schema 2. The schema 1
+reader currently present in local code is transitional and under review for
+removal; use offline conversion and decision comparison for migration rather
+than retaining two runtime evaluators. The current schema 2 scope does not
+include wildcards, arbitrary constraints, policy update interfaces, or
+per-credential identity; the latter belongs to Phase 4. Policy updates remain
+administrator-controlled and require protected promotion. Local canary
+verification is documented, but Phase 3 release evidence is incomplete.
 
 ```mermaid
 flowchart TD

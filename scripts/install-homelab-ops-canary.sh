@@ -25,7 +25,7 @@ CONSUMED_DIR=$APPROVALS_DIR/consumed
 SUDOERS_DIR=/etc/sudoers.d
 SUDOERS_DST=$SUDOERS_DIR/homelab-ops-canary
 SUDOERS_CANDIDATE=$SUDOERS_DIR/.homelab-ops-canary.candidate.$$
-PACKAGE_FILES='__init__.py approvals/__init__.py approvals/store.py gateway/__init__.py gateway/core.py gateway/approval_cli.py'
+PACKAGE_FILES='__init__.py approvals/__init__.py approvals/store.py gateway/__init__.py gateway/core.py gateway/policy.py gateway/approval_cli.py'
 
 PYTHON=/usr/bin/python3
 ID=/usr/bin/id
@@ -123,7 +123,7 @@ stage, self_path, gateway, approver, policy_path, package, package_base, candida
 sources = (self_path, gateway, approver, policy_path)
 package_files = (
     "__init__.py", "approvals/__init__.py", "approvals/store.py",
-    "gateway/__init__.py", "gateway/core.py", "gateway/approval_cli.py",
+    "gateway/__init__.py", "gateway/core.py", "gateway/policy.py", "gateway/approval_cli.py",
 )
 package_sources = [package / item for item in package_files]
 
@@ -249,11 +249,27 @@ try:
     config = json.loads(policy_path.read_text(encoding="utf-8"), object_pairs_hook=_unique)
 except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
     fail("canary policy JSON is invalid: " + str(error))
-if (not isinstance(config, dict) or set(config) != {"schema", "operations", "services"}
-        or type(config.get("schema")) is not int or config["schema"] != 1
-        or config["operations"] != ["status", "restart"]
-        or not isinstance(config["services"], dict) or set(config["services"]) != {"jellyfin"}):
-    fail("policy does not match the supported Phase 2 schema")
+if (not isinstance(config, dict) or set(config) != {"schema", "revision", "principals", "roles", "services"}
+        or type(config.get("schema")) is not int or config["schema"] != 2
+        or not isinstance(config["revision"], str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", config["revision"])
+        or not isinstance(config["principals"], dict) or set(config["principals"]) != {"agent"}
+        or not isinstance(config["roles"], dict) or not isinstance(config["services"], dict)
+        or set(config["services"]) != {"jellyfin"}):
+    fail("policy does not match the supported Phase 3 schema")
+principal = config["principals"]["agent"]
+if principal != {"id": "unix:agent", "roles": ["operator"]} or "operator" not in config["roles"]:
+    fail("policy agent principal mapping is invalid")
+if set(config["roles"]) != {"operator"}:
+    fail("policy role mapping is invalid")
+permissions = config["roles"]["operator"]
+if not isinstance(permissions, dict) or set(permissions) != {"permissions"}:
+    fail("policy operator role is invalid")
+expected_permissions = [
+    {"effect": "allow", "operation": "status", "resource": "host:local", "require_approval": False},
+    {"effect": "allow", "operation": "restart", "resource": "service:jellyfin", "require_approval": True},
+]
+if permissions["permissions"] != expected_permissions:
+    fail("policy permissions differ from the reviewed canary baseline")
 service = config["services"]["jellyfin"]
 if (not isinstance(service, dict)
         or set(service) != {"container_name", "image", "compose_project", "compose_service"}
@@ -279,11 +295,11 @@ if (len(fields) != 6 or not re.fullmatch(r"[0-9a-f]{64}", fields[0])
     raise SystemExit("install-homelab-ops-canary: live Jellyfin identity differs; no changes made")
 PY
 
-printf '%s\n' 'Canary source hashes (10 files):'
+printf '%s\n' 'Canary source hashes (11 files):'
 "$SHA256SUM" "$SELF" "$GATEWAY_SRC" "$APPROVER_SRC" "$POLICY_SRC" \
     "$PACKAGE_SRC/__init__.py" "$PACKAGE_SRC/approvals/__init__.py" "$PACKAGE_SRC/approvals/store.py" \
-    "$PACKAGE_SRC/gateway/__init__.py" "$PACKAGE_SRC/gateway/core.py" "$PACKAGE_SRC/gateway/approval_cli.py"
-printf '%s\n' 'Compare all ten hashes with the reviewed local checkout. Type INSTALL CANARY to continue.'
+    "$PACKAGE_SRC/gateway/__init__.py" "$PACKAGE_SRC/gateway/core.py" "$PACKAGE_SRC/gateway/policy.py" "$PACKAGE_SRC/gateway/approval_cli.py"
+printf '%s\n' 'Compare all eleven hashes with the reviewed local checkout. Type INSTALL CANARY to continue.'
 [ -t 0 ] || fail 'interactive confirmation is required after hash review'
 IFS= read -r confirmation || fail 'confirmation was not received'
 [ "$confirmation" = 'INSTALL CANARY' ] || fail 'administrator cancelled before installation'

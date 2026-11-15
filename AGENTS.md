@@ -211,30 +211,68 @@ Never bypass a security restriction to complete a task.
 
 ## Repository Development Contract
 
-`homelab-ops` development is specification-driven. Before implementation, read
-the relevant product specification, architecture documents, and active phase
-specification in `specs/`. Use the workflow and templates described in
-[`specs/README.md`](specs/README.md).
+`homelab-ops` development is production-oriented and specification-driven.
+Follow the workflow and templates in [`specs/README.md`](specs/README.md) and
+[`specs/product/quality-standards.md`](specs/product/quality-standards.md).
+
+The required phase workflow is:
+
+**SPEC → DESIGN → TASKS → BUILD → VERIFY → RELEASE**
+
+Architecture review is the first DESIGN activity. Every phase directory must
+contain `spec.md`, `design.md`, `tasks.md`, and `verification.md`. Keep the
+documents concise; use the statuses in the quality standards and link evidence
+instead of duplicating operational logs.
+
+Before implementation, inspect the current source, tests, scripts, specs, and
+worktree. Record verified findings separately from suspected risks. For each
+affected component, state whether it will be **reused, refactored, replaced, or
+removed** and why. An existing implementation is not automatically a design
+constraint. Do not add features on top of an unsuitable abstraction merely to
+avoid scoped refactoring.
 
 AI coding agents must:
 
 1. Identify the active phase and read its specification and relevant ADRs.
 2. Surface ambiguities that affect security, compatibility, or acceptance; do
    not silently invent requirements.
-3. Prepare or update a technical design and ordered task breakdown before
-   substantial implementation.
-4. Implement only the reviewed scope; a draft specification is not production
-   authorization.
-5. Add automated tests for implementation changes and include negative
-   security cases where applicable.
-6. Record requirement-to-verification evidence and known limitations.
-7. Preserve installed paths, exact CLI behavior, import expectations, policy
-   semantics, and bootstrap compatibility unless a separately scoped migration
-   explicitly changes them.
-8. Keep local implementation and production deployment separate. Production
-   changes remain subject to Observe, Plan, and Execute restrictions above.
+3. Complete SPEC, DESIGN, and TASKS before BUILD. DESIGN must inspect the
+   current source and record components to reuse, refactor, replace, or remove,
+   plus interfaces, trust boundaries, security controls, alternatives, and
+   tradeoffs. TASKS must be small vertical slices with observable completion
+   criteria. Do not start implementation while a security-critical decision
+   is unresolved.
+4. State compatibility requirements explicitly. Pre-1.0 internal APIs and
+   policy formats have no compatibility promise by default; see
+   [`specs/product/compatibility-policy.md`](specs/product/compatibility-policy.md).
+5. Justify every compatibility layer with a documented consumer, scope, test,
+   and removal condition. Prefer removing obsolete paths over preserving
+   redundant behavior. Do not change live server state as a code migration.
+6. Add tests for intended architecture and user-visible behavior, including
+   negative security and no-side-effect checks. Do not preserve historical
+   implementation details in tests unless a documented transition requires it.
+7. Run and report the applicable local quality gates. Record exact commands,
+   results, failures, and limitations; do not claim a gate passed if it was not
+   run.
+8. Record requirement-to-evidence traceability, installation/configuration,
+   runtime verification, rollback results, and known limitations.
+9. Use only the phase statuses and release evidence defined in the quality
+   standards. Unit tests or code presence alone never means Release Ready.
+10. Keep local implementation and production deployment separate. Production
+    changes remain subject to Observe, Plan, Review, Approve, Execute, Verify,
+    and Document restrictions above.
 
-The required lifecycle is **Specification → Technical Design → Task Breakdown
-→ Implementation → Verification → Review → Release**. Preserve the existing
-`.agents/skills/` procedures. Do not move or package privileged gateway code
-as a documentation-only change.
+During RELEASE, prepare an immutable versioned artifact, installation and
+configuration steps, runtime checks, rollback instructions, and a release
+record. Obtain production authorization separately; a RELEASE plan does not
+authorize deployment. Do not mark a phase Released until its working capability
+and all applicable acceptance evidence are demonstrated.
+
+Use short-lived review branches for implementation and keep `main` releasable.
+Do not switch, stash, reset, or overwrite an existing dirty worktree to create
+a branch. If unrelated changes are present, preserve them and use an isolated
+worktree/branch when that can be done safely. Do not commit, push, merge, or
+deploy without authorization.
+
+Preserve the existing `.agents/skills/` procedures. Do not move or package
+privileged gateway code as a documentation-only change.

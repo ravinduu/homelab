@@ -1,6 +1,9 @@
 # Incremental code migration strategy
 
-**Status:** Complete for local source organization and compatibility tests. No server files have been changed.
+**Status:** Local source organization and compatibility tests implemented;
+phase release verification remains pending. The production gateway package
+migration is not recorded. The separate canary installation was reported by
+the user and was not independently rechecked in this review.
 
 ## Target repository organization
 
@@ -41,8 +44,9 @@ entries; and `scripts/homelab-ops`. Entry-point sources live in
 updated first-install script installs the
 protected server package at `/usr/local/lib/homelab_ops`, retaining the legacy
 shared-module facade in `/usr/local/sbin`. It remains first-install-only and
-refuses existing destinations. The remote installation has not been migrated
-or revalidated. Preserve CLI argv, policy schema, file modes, and error codes.
+refuses existing destinations. The production gateway installation has not
+been migrated or revalidated. Preserve CLI argv, policy schema, file modes,
+and error codes during a reviewed transition.
 
 Migration result:
 
@@ -51,7 +55,8 @@ Migration result:
 2. `scripts/` contains the local CLI, shell inventory, and administrator
    installer; it no longer contains privileged Python gateway sources.
 3. The installer accepts an exact protected package subset and refuses
-   existing destinations. Local tests/syntax checks pass; it was not run.
+   existing destinations. Local tests/syntax checks pass; production package
+   migration is unverified.
 4. Any live package update requires separate review, exact hashes,
    administrator approval, verification, and a rollback plan.
 

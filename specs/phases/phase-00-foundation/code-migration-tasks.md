@@ -1,6 +1,8 @@
 # Code layout migration: task breakdown
 
-**Status:** Complete locally. No production install or server change.
+**Status:** Local source migration implemented; phase remains Verification
+Pending under the production Definition of Done. No production gateway migration
+is recorded.
 
 1. [x] Record migration design, target package boundary, and compatibility
    surface.

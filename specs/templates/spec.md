@@ -1,34 +1,75 @@
 # Feature / phase specification: <name>
 
-**Status:** Draft | Reviewed | Accepted | Complete
+**Status:** Planned | Design Approved | In Development | Code Complete |
+Verification Pending | Release Ready | Released
+
+## Architecture review
+
+Record current evidence, uncertainties, and impacted components:
+
+| Component | Reuse / Refactor / Replace / Remove | Reason and compatibility justification |
+|---|---|---|
 
 ## Context and problem
 
-What problem, for whom, and why now?
+Who needs the capability and what operational problem does it solve?
 
-## Goals and non-goals
+## User-visible vertical slice
 
-- Goals:
-- Non-goals:
+State one complete, testable capability delivered by this phase. List user
+scenarios, preconditions, success, denial, and recovery behavior.
 
-## Requirements
+## Functional scope and exclusions
 
-List stable IDs, including functional, security, operational, reliability,
-compatibility, and non-functional requirements as applicable.
+Define supported operations, resources, inputs, outputs, limits, and explicit
+non-goals. Split independent adapters/protocols into separately reviewable
+increments.
 
-## User scenarios
+## Security invariants
 
-Describe requester, preconditions, request, expected response, and denial/error
-paths.
+Define identity source, authorization boundary, approval requirements, data
+handling, bounded resources, fail-closed behavior, audit requirements, and
+negative cases.
 
-## Acceptance criteria
+## Expected architecture
 
-Measurable outcomes; include negative/security cases.
+Describe module boundaries, data contracts, dependencies, and where policy,
+approval, execution, and audit responsibilities live.
 
-## Dependencies
+## Requirements and dependencies
 
-Phases, systems, decisions, and rollout prerequisites.
+List requirement IDs and phase/system prerequisites. Link each requirement to
+measurable acceptance and verification evidence.
+
+## Tests and quality gates
+
+Specify unit, integration, installed-layout, end-to-end, negative security,
+static analysis, type checking, dependency, and packaging checks as applicable.
+Name commands, fixtures, target, and expected outcomes.
+
+## Installation and configuration
+
+State artifact source/revision, protected configuration, owners/modes,
+preflight, installation, and secret handling. If not applicable, state why.
+
+## Runtime verification
+
+Name the disposable/canary/production target, health/denial/audit checks,
+dependencies, and exact evidence to record. Production execution still needs
+separate authorization.
+
+## Rollback
+
+Name the known-good revision, disable/restore order, verification, data/audit
+retention, and rollback test. Never broaden access during recovery.
+
+## Acceptance and Definition of Done
+
+List measurable outcomes and every applicable item in
+[`../product/quality-standards.md`](../product/quality-standards.md). A phase
+cannot be Released without its evidence record and release review.
 
 ## Open questions
 
-Record unresolved decisions and the owner needed to resolve each.
+Record unresolved security, compatibility, or acceptance decisions, their
+owner, and the point before which they must be resolved.

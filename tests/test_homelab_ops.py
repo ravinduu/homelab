@@ -1,16 +1,15 @@
 from __future__ import annotations
 
+import ast
 import contextlib
 import io
-import ast
 import re
-import unittest
-from unittest.mock import patch
-
-from pathlib import Path
 import shutil
-import sys
 import subprocess
+import sys
+import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "homelab-ops"
@@ -39,7 +38,10 @@ class HomelabOpsClientTests(unittest.TestCase):
     def test_canary_client_targets_only_canary_gateway_by_default(self) -> None:
         canary_script = REPO / "scripts" / "homelab-ops-canary"
         result = subprocess.run(
-            [sys.executable, str(canary_script), "status"], capture_output=True, text=True, check=False
+            [sys.executable, str(canary_script), "status"],
+            capture_output=True,
+            text=True,
+            check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("DRY RUN", result.stdout)
@@ -63,14 +65,20 @@ class HomelabOpsClientTests(unittest.TestCase):
         policy = homelab_ops.POLICY["projects"]
         self.assertTrue(set(policy))
         self.assertEqual(set(homelab_ops.POLICY["operations"]), {"status", "restart"})
-        self.assertEqual(homelab_ops.RESTART_SERVICES, frozenset(homelab_ops.POLICY["restart_services"]))
+        self.assertEqual(
+            homelab_ops.RESTART_SERVICES, frozenset(homelab_ops.POLICY["restart_services"])
+        )
 
     def test_send_flag_is_the_only_path_that_invokes_ssh(self) -> None:
-        with patch.object(homelab_ops.subprocess, "run", return_value=type("R", (), {"returncode": 0})()) as run:
+        with patch.object(
+            homelab_ops.subprocess, "run", return_value=type("R", (), {"returncode": 0})()
+        ) as run:
             self.assertEqual(homelab_ops.main(["--send", "restart", "jellyfin"]), 0)
         argv = run.call_args.args[0]
         self.assertEqual(argv[:3], ["ssh", "--", "home-server-agent"])
-        self.assertEqual(argv[-5:], ["sudo", "-n", "/usr/local/sbin/homelab-ops", "restart", "jellyfin"])
+        self.assertEqual(
+            argv[-5:], ["sudo", "-n", "/usr/local/sbin/homelab-ops", "restart", "jellyfin"]
+        )
 
     def test_no_shell_or_arbitrary_remote_argument_is_accepted(self) -> None:
         for request in (

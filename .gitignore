@@ -3,6 +3,23 @@ __pycache__/
 *.py[cod]
 venv/
 .venv/
+build/
+dist/
+*.egg-info/
+
+# Local tool/test caches and coverage output
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
+.tox/
+.nox/
+htmlcov/
+.coverage
+coverage.xml
+
+# macOS filesystem metadata
+.DS_Store
 
 # Local environment files and secrets (keep only example templates in Git)
 .env

@@ -1,61 +1,79 @@
-# Product vision
+# Product goal and success criteria
 
-**Status:** Proposed long-term direction; grounded in the existing supervised
-Debian implementation. **Review date:** 2026-11-14.
+**Status:** Product direction for the Phase 1–7 delivery plan. Current support
+claims are recorded separately in `requirements.md` and `roadmap.md`.
 
-## Problem
+## Product goal
 
-Infrastructure operators need to delegate bounded observation and maintenance
-operations to agents and automation without giving those clients unrestricted
-shell, Docker, host, or administrator authority. Client-side prompts and
-allowlists cannot secure a remote host. A trusted server boundary must verify
-who made a request, what operation is allowed, what target it applies to, and
-whether human approval is required.
+Build an agent-independent infrastructure operations framework. An authorized
+agent can securely inspect supported servers, produce an evidence-based health
+summary, explain detected problems, recommend supported actions, request
+human approval, continue after a valid approval, execute only the exact
+authorized operation through a trusted gateway, verify the result, and return
+an auditable report.
 
-## Mission and users
+Agents submit bounded operation requests; they never receive privileges. Each
+server remains authoritative for authentication, principal mapping, policy,
+approval validation, execution, and audit.
 
-Build an agent-independent framework for authenticated, explicitly authorized
-infrastructure operations. Users include human CLI operators, AI coding
-agents, custom agents, CI/CD systems, and automation platforms. Clients use a
-stable, bounded operation contract; the server retains control of policy and
-execution.
+## Users and working scenario
 
-## Primary use cases
+The operator enrolls a server and an agent identity. The agent requests a
+health inspection and receives a timestamped, sanitized report with evidence
+and explicit uncertainty. If a supported issue has a corrective action, the
+agent explains the scope and impact, then submits a typed request. The gateway
+re-authenticates the caller and checks protected policy. If approval is
+required, a separately authorized human approves that exact principal,
+operation, resource, and policy context. The agent resumes using the same
+request identity; the gateway validates and consumes the approval once,
+executes through the selected adapter, checks service health, and returns a
+correlated outcome. Denials and partial failures are reported without claiming
+success.
 
-- Discover host and service health through restricted, sanitized inventory.
-- Request a narrowly scoped operation such as an approved service restart.
-- Require a separate administrator approval for sensitive operations.
-- Audit requests and outcomes without recording secrets or arbitrary command
-  output.
-- Add infrastructure-specific adapters behind a common authorization and
-  execution boundary.
-- Progress from one Debian host to documented multi-server management only
-  after identity, policy, transport, and fleet consistency are designed.
+## Measurable v1.0 success criteria
 
-## Environment direction
+The Phase 7 release is successful only when evidence demonstrates all of the
+following on the exact release artifact:
 
-**Observed foundation:** Debian, Python scripts, SSH, sudoers, Docker, and
-Docker Compose. **Planned candidates:** Debian/Ubuntu, systemd, approved
-Ansible workflows, Kubernetes, and multiple hosts. These are roadmap targets,
-not current support claims. Each target requires adapter-specific design,
-threat review, tests, and acceptance evidence.
+1. At least two independently authenticated agent clients use the documented
+   operation contract to inspect and request supported work; client-side
+   allowlists cannot grant server authority.
+2. At least two separately enrolled hosts return attributable health results
+   and per-host status. An unavailable host or partial operation is represented
+   explicitly and never reported as fleet-wide success.
+3. Every supported request has a typed operation/resource, an authenticated
+   principal, a server-side policy decision, and a correlated audit record.
+   Unknown or malformed requests deny before side effects.
+4. Each approval-required action is bound to the exact principal, operation,
+   resource, expiry, and policy context; it cannot be replayed or consumed by
+   another request. A valid approval allows the requesting workflow to resume
+   without creating an alternate authorization path.
+5. Every successful mutation is followed by its declared health verification.
+   Failed verification returns failure or partial status with evidence; it
+   never returns success.
+6. Reports identify evidence source and observation time, redact secrets and
+   uncontrolled output, distinguish facts from diagnosis/recommendation, and
+   link the request, approval, decision, execution, and verification events.
+7. Supported installs are reproducible from reviewed artifacts. Installation,
+   upgrade, credential revocation, and rollback are demonstrated in isolated
+   environments without broadening privilege or losing required audit data.
+8. Required tests, negative security checks, static/type/security/dependency
+   checks, package validation, and release review pass on the exact revision.
+
+Each phase adds measurable criteria for its own vertical slice. v1.0 is not
+claimed until all seven phase releases are accepted and these product-level
+criteria pass together.
 
 ## Product boundaries
 
-- Requests are data with a bounded schema, never shell programs.
-- The gateway is not a public unrestricted administrative API.
-- Authentication, principal identity, authorization, and human approval are
-  distinct checks.
-- Policy, approvals, executables, release inputs, and secrets are protected
-  from requesters.
-- Clients do not gain privilege merely by being an AI agent or by using SSH.
-- Deployment, destructive data operations, and host/network administration
-  require separately scoped approval procedures.
-
-## Long-term direction
-
-Evolve in gated phases: reproducible foundation; read-only discovery; narrow
-secure gateway; generalized verified-principal policy; remote credential and
-transport hardening; bounded execution adapters; agent integrations; then
-multi-server operations. Preserve compatibility while each capability is
-introduced and independently verified.
+- Requests are bounded data, never shell programs or arbitrary playbooks.
+- Transport authentication, identity, authorization, human approval, and
+  execution are separate decisions.
+- Policy, credentials, approvals, release inputs, and execution binaries are
+  protected from requesters.
+- Health summaries cite observed data and do not invent causes or claim an
+  action succeeded without verification.
+- Each host enforces its own policy, even when a future coordinator manages a
+  fleet.
+- Debian/SSH/Docker is the current implementation environment, not a promise
+  that other operating systems or infrastructure adapters are supported.

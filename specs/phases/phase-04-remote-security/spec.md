@@ -33,3 +33,32 @@ Add new credential path alongside current restricted account, test, then disable
 ## Open questions
 
 Credential authority, private network, host-key distribution, multi-agent account design, and break-glass owner.
+
+## Vertical slice and release evidence
+
+- **User-visible capability:** An operator can authenticate a uniquely mapped
+  principal and revoke/rotate its credential without granting shell or host
+  administration.
+- **Functional scope:** Select one credential enrollment and rotation path;
+  identify, authenticate, revoke, and recover. Other transports/credential
+  authorities require separate accepted increments.
+- **Security invariants:** Host-key verification, one credential-to-principal
+  mapping, server-side policy, no PTY/forwarding/command bypass, revocation
+  denial, secret non-disclosure, and a tested break-glass path.
+- **Architecture/refactoring:** Replace shared-account identity claims only
+  after the selected per-principal path is tested; remove obsolete identity
+  mapping code after controlled cutover. Do not add transport abstraction
+  without a second justified implementation.
+- **Tests:** Unit identity mapping; SSH integration tests for auth/host keys,
+  revoked credentials, forced-command restrictions, shell/forwarding denial;
+  isolated E2E rotation/recovery and negative tests.
+- **Installation:** Administrator-controlled staged key/authorized-key update;
+  no agent sudo/group changes. Include exact host-key and credential inventory.
+- **Runtime verification:** Verify new principal identity and operation
+  decisions, revoke the test credential and verify denial, then confirm the
+  old supported path remains only for the documented transition window.
+- **Rollback:** Restore the prior restricted access credential without
+  widening permissions; prove revocation/rollback behavior in a test host.
+- **Acceptance / Definition of Done:** All quality-standard checks and staged
+  runtime/rollback evidence pass. Firewall and SSH changes still require the
+  separate high-risk administrator procedure.

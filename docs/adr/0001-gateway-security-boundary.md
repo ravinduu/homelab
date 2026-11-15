@@ -23,7 +23,9 @@ the privileged boundary to an untrusted requester.
 ## Consequences
 
 More server-side code and policy maintenance; clearer enforcement and audit
-boundary. Preserve existing installed paths while evolving this boundary.
+boundary. Keep installed paths only as a documented, time-bounded transition
+constraint when an actual installed consumer requires it; internal
+compatibility is not a permanent promise.
 
 ## Reconsider when
 
