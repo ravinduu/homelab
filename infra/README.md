@@ -1,12 +1,17 @@
-# Infrastructure configuration workspace
+# Homelab infrastructure
 
-`infra/` is the canonical local working tree for reviewed desired-state files. It now contains sanitized Compose snapshots of the four projects inspected over read-only SSH and the client-side project/action inventory in `policy/allowlist.json`. These files are not yet promoted deployment releases: runtime variables and secret handling were sanitized, and some live mounts and persistent-storage details cannot be independently verified with the current read-only inventory.
+[`compose/`](compose/README.md) is the desired Compose source for the Debian
+homelab, maintained on the Mac. It covers the four projects inspected over SSH
+on 2026-11-22: Arr, Jellyfin, Pi-hole and monitoring. See the Compose README for
+the live assessment, environment setup, validation and adoption procedure.
 
-Proposed additions after review:
+`terraform-iam/` contains the separate IAM configuration. Docker network
+Terraform lives under `../terraform/`; it currently manages `homelab-media` and
+`homelab-monitoring-v2`. The existing Compose projects own `arr-network` and
+`monitoring-network`. Changing network ownership requires a deliberate migration.
 
-```text
-infra/compose/{arr,jellyfin,pihole,monitoring}/
-infra/policy/allowlist.json
-```
+`policy/` contains the existing operations policy files. The legacy operations
+wrappers under `../scripts/` are separate from Compose administration.
 
-The Compose snapshots intentionally preserve the existing service settings, including known risky monitoring privileges and mutable image tags, so the Git baseline describes the observed stack. Pi-hole's configured password is replaced by a required external variable. Treat these files as a review baseline until the diffs and runtime env are approved and the commit is independently promoted into a root-owned immutable release. Do not put `.env`, credentials, rendered configuration, or release approval records in this tree.
+Keep credentials, runtime env files, Terraform state and application data outside
+Git. The Compose changes in this checkout have not been deployed.

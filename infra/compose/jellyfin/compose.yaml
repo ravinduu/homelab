@@ -1,16 +1,40 @@
+# Linux server configuration; image digests observed on 2026-11-22.
+name: jellyfin
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  logging:
+    driver: local
+    options:
+      max-size: "10m"
+      max-file: "3"
+
 services:
   jellyfin:
-    image: jellyfin/jellyfin:latest
+    <<: *service-defaults
+    image: jellyfin/jellyfin:latest@sha256:baba630419915985442f315f08b0cf46d9f4c8a0cc4bd38e94a6d35751dd5ef5
     container_name: jellyfin
     ports:
-      - "8096:8096"
+      - "${WEB_BIND_IP:-192.168.1.10}:8096:8096"
       - "7359:7359/udp"
     volumes:
-      - /var/lib/homelab/jellyfin/config:/config
-      - /var/lib/homelab/jellyfin/cache:/cache
-      - /mnt/media/jellyfin-media:/media:ro
+      - type: bind
+        source: /var/lib/homelab/jellyfin/config
+        target: /config
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /var/lib/homelab/jellyfin/cache
+        target: /cache
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /mnt/media/jellyfin-media
+        target: /media
+        read_only: true
+        bind:
+          create_host_path: false
     devices:
       - /dev/dri/renderD128:/dev/dri/renderD128
     group_add:
-      - "992"
-    restart: unless-stopped
+      - "${RENDER_GID:-992}"

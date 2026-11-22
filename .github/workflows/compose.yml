@@ -1,0 +1,27 @@
+name: Compose validation
+
+on:
+  push:
+    paths:
+      - infra/compose/**
+      - scripts/check-compose.py
+      - scripts/check-compose-host.sh
+      - .github/workflows/compose.yml
+  pull_request:
+    paths:
+      - infra/compose/**
+      - scripts/check-compose.py
+      - scripts/check-compose-host.sh
+      - .github/workflows/compose.yml
+
+permissions:
+  contents: read
+
+jobs:
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: docker compose version
+      - run: python3 scripts/check-compose.py
+      - run: sh -n scripts/check-compose-host.sh

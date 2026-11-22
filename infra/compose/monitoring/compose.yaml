@@ -1,23 +1,46 @@
+# Linux server configuration; image digests observed on 2026-11-22.
+name: monitoring
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  logging:
+    driver: local
+    options:
+      max-size: "10m"
+      max-file: "3"
+
 services:
   prometheus:
-    image: prom/prometheus:v3.14.0
+    <<: *service-defaults
+    image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
     container_name: prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=30d
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - type: bind
+        source: ./prometheus/prometheus.yml
+        target: /etc/prometheus/prometheus.yml
+        read_only: true
+        bind:
+          create_host_path: false
       - prometheus_data:/prometheus
     networks: [monitoring]
-    restart: unless-stopped
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      test: [CMD, wget, --spider, -q, "http://localhost:9090/-/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   grafana:
-    image: grafana/grafana:13.2.1
+    <<: *service-defaults
+    image: grafana/grafana:13.2.1@sha256:f772d434e8fab0049deb2b1b30abd43342bcfca1537614aa8d36080232cf4283
     container_name: grafana
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?required in protected monitoring runtime env}
@@ -27,10 +50,16 @@ services:
       - "127.0.0.1:3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - type: bind
+        source: ./grafana/provisioning
+        target: /etc/grafana/provisioning
+        read_only: true
+        bind:
+          create_host_path: false
     networks: [monitoring]
-    depends_on: [prometheus]
-    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_healthy
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -40,49 +69,96 @@ services:
       retries: 3
 
   node-exporter:
-    image: prom/node-exporter:v1.12.1
+    <<: *service-defaults
+    image: prom/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
     container_name: node-exporter
     command:
       - --path.procfs=/host/proc
       - --path.sysfs=/host/sys
       - --path.rootfs=/host/root
-      - --collector.systemd
       - --collector.processes
     volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/host/root:ro
+      - type: bind
+        source: /proc
+        target: /host/proc
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /sys
+        target: /host/sys
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /
+        target: /host/root
+        read_only: true
+        bind:
+          create_host_path: false
+          propagation: rslave
     networks: [monitoring]
-    restart: unless-stopped
 
   cadvisor:
-    image: ghcr.io/google/cadvisor:v0.60.6
+    <<: *service-defaults
+    image: ghcr.io/google/cadvisor:v0.60.6@sha256:b8e7d1093144fd088f425ff003d75a4aa405de075db78dae3bc563730b1bd07a
     container_name: cadvisor
     privileged: true
     devices:
       - /dev/kmsg:/dev/kmsg
     volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker:/var/lib/docker:ro
-      - /dev/disk:/dev/disk:ro
+      - type: bind
+        source: /
+        target: /rootfs
+        read_only: true
+        bind:
+          create_host_path: false
+          propagation: rslave
+      - type: bind
+        source: /var/run
+        target: /var/run
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /sys
+        target: /sys
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /var/lib/docker
+        target: /var/lib/docker
+        read_only: true
+        bind:
+          create_host_path: false
+          propagation: rslave
+      - type: bind
+        source: /dev/disk
+        target: /dev/disk
+        read_only: true
+        bind:
+          create_host_path: false
     command:
       - --docker_only=true
       - --housekeeping_interval=15s
     networks: [monitoring]
-    restart: unless-stopped
 
   docker-health-exporter:
-    image: fviolence/docker-health-exporter:v1.0
+    <<: *service-defaults
+    image: fviolence/docker-health-exporter:v1.0@sha256:14116e61c73c868a6c244a6729dd0e1e556988d99d1b2c1475aaa968fcddaed7
     container_name: docker-health-exporter
     environment:
       PORT: 9066
       SCRAPE_INTERVAL: 10
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: true
+        bind:
+          create_host_path: false
     networks: [monitoring]
-    restart: unless-stopped
     security_opt:
       - no-new-privileges:true
 
@@ -94,5 +170,7 @@ networks:
 volumes:
   prometheus_data:
     name: prometheus_data
+    external: true
   grafana_data:
     name: grafana_data
+    external: true

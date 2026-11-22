@@ -1,0 +1,29 @@
+
+name: pi-hole
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  logging:
+    driver: local
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  pihole:
+    <<: *service-defaults
+    container_name: pihole
+    # Update the digest deliberately after testing.
+    image: pihole/pihole:latest@sha256:f7d1be836e3bc608b56d82fc9904f5a831cdfbc0dc9c6d58f94e4c985c70038b
+    network_mode: host
+    environment:
+      TZ: ${TZ:-Asia/Colombo}
+      FTLCONF_webserver_api_password: ${PIHOLE_WEBPASSWORD:?required}
+      # Accept DNS requests from directly connected local subnets.
+      FTLCONF_dns_listeningMode: LOCAL
+    volumes:
+      - type: bind
+        source: /mnt/old-hdd/docker/pihole/etc-pihole
+        target: /etc/pihole
+        bind:
+          create_host_path: false

@@ -1,0 +1,8 @@
+pihole_stack_dir: /opt/stacks/pihole
+pihole_data_dir: /mnt/old-hdd/docker/pihole/etc-pihole
+pihole_mount_point: /mnt/old-hdd
+pihole_tz: Asia/Colombo
+pihole_compose_src: "{{ playbook_dir }}/../docker/pihole/compose.yaml"
+
+# Used by the post-deploy DNS check
+pihole_test_domain: example.com

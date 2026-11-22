@@ -1,75 +1,115 @@
+# Linux server configuration; image digests observed on 2026-11-22.
+name: arr
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  logging:
+    driver: local
+    options:
+      max-size: "10m"
+      max-file: "3"
+
 services:
   qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:latest
+    <<: *service-defaults
+    image: lscr.io/linuxserver/qbittorrent:latest@sha256:2be038f3421f60f62e8e4bf201f66f385b68e4fbc9ed3ab79051069ea22e2650
     container_name: qbittorrent
     environment:
-      PUID: ${PUID:?required in protected arr runtime env}
-      PGID: ${PGID:?required in protected arr runtime env}
-      TZ: ${TZ:?required in protected arr runtime env}
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Asia/Colombo}
       WEBUI_PORT: 8080
       TORRENTING_PORT: 6881
     volumes:
-      - /var/lib/homelab/arr/qbittorrent:/config
-      - /mnt/media:/data
+      - type: bind
+        source: /var/lib/homelab/arr/qbittorrent
+        target: /config
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /mnt/media
+        target: /data
+        bind:
+          create_host_path: false
     ports:
-      - "8080:8080"
+      - "${WEB_BIND_IP:-192.168.1.10}:8080:8080"
       - "6881:6881"
       - "6881:6881/udp"
     networks: [arr]
-    restart: unless-stopped
 
   prowlarr:
-    image: lscr.io/linuxserver/prowlarr:latest
+    <<: *service-defaults
+    image: lscr.io/linuxserver/prowlarr:latest@sha256:c96b56d94d116a9f4de94bc23d3381689492e6c3cfb7435320e8d982e406f99a
     container_name: prowlarr
     environment:
-      PUID: ${PUID:?required in protected arr runtime env}
-      PGID: ${PGID:?required in protected arr runtime env}
-      TZ: ${TZ:?required in protected arr runtime env}
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Asia/Colombo}
     volumes:
-      - /var/lib/homelab/arr/prowlarr:/config
+      - type: bind
+        source: /var/lib/homelab/arr/prowlarr
+        target: /config
+        bind:
+          create_host_path: false
     ports:
-      - "9696:9696"
+      - "${WEB_BIND_IP:-192.168.1.10}:9696:9696"
     networks: [arr]
-    restart: unless-stopped
 
   radarr:
-    image: lscr.io/linuxserver/radarr:latest
+    <<: *service-defaults
+    image: lscr.io/linuxserver/radarr:latest@sha256:c960f2b52ec6542dbe6707c5a21e696a7c74fd8b17997454f4d10a55dacee133
     container_name: radarr
     environment:
-      PUID: ${PUID:?required in protected arr runtime env}
-      PGID: ${PGID:?required in protected arr runtime env}
-      TZ: ${TZ:?required in protected arr runtime env}
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Asia/Colombo}
     volumes:
-      - /var/lib/homelab/arr/radarr:/config
-      - /mnt/media:/data
+      - type: bind
+        source: /var/lib/homelab/arr/radarr
+        target: /config
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /mnt/media
+        target: /data
+        bind:
+          create_host_path: false
     ports:
-      - "7878:7878"
+      - "${WEB_BIND_IP:-192.168.1.10}:7878:7878"
     networks: [arr]
-    restart: unless-stopped
 
   sonarr:
-    image: lscr.io/linuxserver/sonarr:latest
+    <<: *service-defaults
+    image: lscr.io/linuxserver/sonarr:latest@sha256:a5c1a5fecbef946927ab90ad68df319ac5fe644057e5fc18cd993f01ac07b2b2
     container_name: sonarr
     environment:
-      PUID: ${PUID:?required in protected arr runtime env}
-      PGID: ${PGID:?required in protected arr runtime env}
-      TZ: ${TZ:?required in protected arr runtime env}
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Asia/Colombo}
     volumes:
-      - /var/lib/homelab/arr/sonarr:/config
-      - /mnt/media:/data
+      - type: bind
+        source: /var/lib/homelab/arr/sonarr
+        target: /config
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /mnt/media
+        target: /data
+        bind:
+          create_host_path: false
     ports:
-      - "8989:8989"
+      - "${WEB_BIND_IP:-192.168.1.10}:8989:8989"
     networks: [arr]
-    restart: unless-stopped
 
   unpackerr:
-    image: golift/unpackerr:latest
+    <<: *service-defaults
+    image: golift/unpackerr:latest@sha256:244fc45cb207308f60e8f52dd703c2b3463385752de0f9517c58ff9d331ed15e
     container_name: unpackerr
-    user: ${PUID:?required in protected arr runtime env}:${PGID:?required in protected arr runtime env}
+    depends_on: [radarr, sonarr]
+    user: "${PUID:-1000}:${PGID:-1000}"
     environment:
-      TZ: ${TZ:?required in protected arr runtime env}
-      UN_LOG_FILE: /config/unpackerr.log
-      UN_FOLDER_0_PATH: /data/arr-downloads/complete/radar
+      TZ: ${TZ:-Asia/Colombo}
+      UN_LOG_FILE: ""
       UN_RADARR_0_URL: http://radarr:7878
       UN_RADARR_0_API_KEY: ${UN_RADARR_API_KEY:?required in protected arr runtime env}
       UN_RADARR_0_PATHS_0: /data
@@ -83,10 +123,17 @@ services:
       UN_SONARR_0_DELETE_DELAY: 5m
       UN_SONARR_0_DELETE_ORIG: "false"
     volumes:
-      - /var/lib/homelab/arr/unpackerr:/config
-      - /mnt/media:/data
+      - type: bind
+        source: /var/lib/homelab/arr/unpackerr
+        target: /config
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /mnt/media
+        target: /data
+        bind:
+          create_host_path: false
     networks: [arr]
-    restart: unless-stopped
 
 networks:
   arr:
