@@ -9,3 +9,7 @@
       tags: [pihole]
     - role: jellyfin
       tags: [jellyfin]
+    - role: arr
+      tags: [arr]
+    - role: monitoring
+      tags: [monitoring]

@@ -19,3 +19,17 @@ jellyfin_media_dir: /mnt/media/jellyfin-media
 jellyfin_render_device: /dev/dri/renderD128
 jellyfin_compose_src: "{{ playbook_dir }}/../docker/jellyfin/compose.yaml"
 jellyfin_web_bind_ip: 192.168.1.10
+
+# --- Arr ---
+arr_stack_dir: /opt/stacks/arr
+arr_compose_src: "{{ playbook_dir }}/../docker/arr/compose.yaml"
+arr_puid: 1000
+arr_pgid: 1000
+arr_tz: Asia/Colombo
+arr_web_bind_ip: 192.168.1.10
+
+# --- Monitoring ---
+monitoring_stack_dir: /opt/stacks/monitoring
+monitoring_compose_src: "{{ playbook_dir }}/../docker/monitoring/compose.yaml"
+monitoring_config_src: "{{ playbook_dir }}/../docker/monitoring"
+monitoring_grafana_admin_user: admin

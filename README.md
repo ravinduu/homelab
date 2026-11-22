@@ -1,28 +1,29 @@
 # Homelab
 
-Infrastructure configuration for the Debian homelab, maintained from the Mac.
+My Debian server configuration, managed from my Mac.
 
-- [`infra/compose/`](infra/compose/README.md): four Compose projects covering Arr,
-  Jellyfin, Pi-hole and monitoring. Includes environment templates, the live
-  assessment from 2026-11-22, validation and adoption/rollback instructions.
-- [`terraform/environments/home/`](terraform/environments/home/): Terraform-managed
-  Docker networks, separate from the networks currently owned by Compose.
-- `infra/terraform-iam/`: IAM configuration.
-- `infra/policy/`: existing operations policies.
-- `scripts/`: Compose validation/preflight and legacy homelab operations wrappers.
+- [`docker/`](docker/README.md) — Arr, Jellyfin, Pi-hole and monitoring.
+- [`ansible/`](ansible/README.md) — server setup and stack deployment.
+- `terraform/environments/home/` — Docker networks.
+- `infra/terraform-iam/` — AWS IAM configuration.
 
-Validate Compose from this checkout without changing the running homelab:
+Deploy:
+
+```sh
+cd ansible
+ansible-playbook site.yml --ask-vault-pass --ask-become-pass
+```
+
+Deploy one stack with `--tags arr`, `jellyfin`, `pihole` or `monitoring`.
+Add `--check --diff` to preview changes.
+
+Check Compose files from the Mac:
 
 ```sh
 python3 scripts/check-compose.py --ssh homelab-terraform
 ssh homelab-terraform 'sh -s' < scripts/check-compose-host.sh
 ```
 
-Use `python3 scripts/check-compose.py` if Docker Compose is installed locally.
-The server configuration targets Linux paths and devices; Docker Desktop on the
-Mac is not the runtime target.
-
-The Compose source preserves existing data paths and project names, pins the
-observed running images by digest, bounds container logs and keeps credentials
-outside Git. Read the [Compose runbook](infra/compose/README.md) before adoption.
-Local implementation does not deploy to the server.
+Omit `--ssh` when Docker Compose is installed locally. The host check runs on
+Debian and checks mounts, data paths, devices and existing monitoring volumes.
+Keep secrets in Ansible Vault and leave `.env` files and Terraform state out of Git.

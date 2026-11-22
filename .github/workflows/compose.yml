@@ -3,13 +3,13 @@ name: Compose validation
 on:
   push:
     paths:
-      - infra/compose/**
+      - docker/**
       - scripts/check-compose.py
       - scripts/check-compose-host.sh
       - .github/workflows/compose.yml
   pull_request:
     paths:
-      - infra/compose/**
+      - docker/**
       - scripts/check-compose.py
       - scripts/check-compose-host.sh
       - .github/workflows/compose.yml

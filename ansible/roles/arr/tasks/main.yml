@@ -1,0 +1,86 @@
+- name: Validate Arr secrets
+  ansible.builtin.assert:
+    that:
+      - vault_arr_radarr_api_key | default('') | string | length > 0
+      - vault_arr_sonarr_api_key | default('') | string | length > 0
+      - "'\n' not in (vault_arr_radarr_api_key | default(''))"
+      - "'\r' not in (vault_arr_radarr_api_key | default(''))"
+      - "'\n' not in (vault_arr_sonarr_api_key | default(''))"
+      - "'\r' not in (vault_arr_sonarr_api_key | default(''))"
+    fail_msg: Add the existing Radarr and Sonarr API keys to Ansible Vault.
+  no_log: true
+
+- name: Verify the media filesystem is mounted
+  ansible.builtin.command:
+    argv: [mountpoint, --quiet, /mnt/media]
+  changed_when: false
+  check_mode: false
+
+- name: Create Arr application directories
+  ansible.builtin.file:
+    path: "/var/lib/homelab/arr/{{ item }}"
+    state: directory
+    owner: "{{ arr_puid }}"
+    group: "{{ arr_pgid }}"
+    mode: "0755"
+  loop: [qbittorrent, prowlarr, radarr, sonarr, unpackerr]
+  become: true
+
+- name: Inspect the Arr stack directory before staging
+  ansible.builtin.stat:
+    path: "{{ arr_stack_dir }}"
+  register: arr_stack
+  become: true
+
+- name: Create Arr stack directory
+  ansible.builtin.file:
+    path: "{{ arr_stack_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: Stage Arr configuration
+  when: not ansible_check_mode or (arr_stack.stat.isdir | default(false))
+  become: true
+  block:
+    - name: Copy Arr compose file
+      ansible.builtin.copy:
+        src: "{{ arr_compose_src }}"
+        dest: "{{ arr_stack_dir }}/compose.yaml"
+        owner: root
+        group: root
+        mode: "0644"
+      register: arr_compose
+
+    - name: Render Arr environment with secrets
+      ansible.builtin.template:
+        src: env.j2
+        dest: "{{ arr_stack_dir }}/.env"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+      diff: false
+      register: arr_env
+
+- name: Deploy Arr
+  community.docker.docker_compose_v2:
+    project_src: "{{ arr_stack_dir }}"
+    state: present
+    pull: missing
+    recreate: "{{ 'always' if (arr_compose.changed or arr_env.changed) else 'auto' }}"
+    wait: true
+    wait_timeout: 180
+  become: true
+  no_log: true
+  when: not ansible_check_mode
+
+- name: Verify Arr web ports
+  ansible.builtin.wait_for:
+    host: "{{ arr_web_bind_ip }}"
+    port: "{{ item }}"
+    timeout: 120
+  loop: [8080, 9696, 7878, 8989]
+  when: not ansible_check_mode
