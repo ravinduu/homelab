@@ -1,7 +1,0 @@
-# Pinned development and CI tools. Runtime dependencies remain empty.
-bandit==1.9.4
-build==1.6.1
-mypy==2.4.1
-pip-audit==2.10.1
-ruff==0.17.5
-setuptools==80.9.0
