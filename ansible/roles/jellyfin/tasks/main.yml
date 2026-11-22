@@ -1,0 +1,89 @@
+- name: Check the media directory exists
+  ansible.builtin.stat:
+    path: "{{ jellyfin_media_dir }}"
+  register: jellyfin_media
+
+- name: Refuse to continue without the media directory
+  ansible.builtin.assert:
+    that: jellyfin_media.stat.exists and jellyfin_media.stat.isdir
+    fail_msg: >-
+      {{ jellyfin_media_dir }} does not exist. Is the media disk mounted
+      (storage role), and does it contain this folder?
+  when: not ansible_check_mode
+
+- name: Check the GPU render device exists
+  ansible.builtin.stat:
+    path: "{{ jellyfin_render_device }}"
+  register: jellyfin_gpu
+
+- name: Refuse to continue without the GPU device
+  ansible.builtin.assert:
+    that: jellyfin_gpu.stat.exists
+    fail_msg: "{{ jellyfin_render_device }} not found. Is the Intel GPU driver loaded?"
+  when: not ansible_check_mode
+
+- name: Look up the render group
+  ansible.builtin.getent:
+    database: group
+    key: render
+  register: jellyfin_render_group
+
+- name: Remember the render GID
+  ansible.builtin.set_fact:
+    jellyfin_render_gid: "{{ jellyfin_render_group.ansible_facts.getent_group['render'][1] }}"
+
+- name: Create stack directory
+  ansible.builtin.file:
+    path: "{{ jellyfin_stack_dir }}"
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Create Jellyfin data directories (compose uses create_host_path false)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ jellyfin_data_dir }}"
+    - "{{ jellyfin_data_dir }}/config"
+    - "{{ jellyfin_data_dir }}/cache"
+  become: true
+
+- name: Copy compose file
+  ansible.builtin.copy:
+    src: "{{ jellyfin_compose_src }}"
+    dest: "{{ jellyfin_stack_dir }}/compose.yaml"
+    mode: "0644"
+  become: true
+  register: jellyfin_compose
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Render .env
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ jellyfin_stack_dir }}/.env"
+    mode: "0600"
+  become: true
+  register: jellyfin_env
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Deploy Jellyfin
+  community.docker.docker_compose_v2:
+    project_src: "{{ jellyfin_stack_dir }}"
+    state: present
+    pull: missing
+    recreate: "{{ 'always' if (jellyfin_compose.changed or jellyfin_env.changed) else 'auto' }}"
+  become: true
+  when: not ansible_check_mode
+
+- name: Verify Jellyfin health endpoint
+  ansible.builtin.uri:
+    url: "http://{{ jellyfin_web_bind_ip }}:8096/health"
+    status_code: 200
+  register: jellyfin_health
+  until: jellyfin_health.status == 200
+  retries: 12
+  delay: 5
+  changed_when: false
+  when: not ansible_check_mode

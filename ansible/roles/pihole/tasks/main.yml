@@ -19,6 +19,7 @@
     mode: "0644"
   become: true
   register: pihole_compose
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Render .env with secrets
   ansible.builtin.template:
@@ -28,6 +29,7 @@
   become: true
   no_log: true
   register: pihole_env
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Deploy Pi-hole
   community.docker.docker_compose_v2:
@@ -36,13 +38,14 @@
     pull: missing
     recreate: "{{ 'always' if (pihole_compose.changed or pihole_env.changed) else 'auto' }}"
   become: true
-  register: pihole_deploy
+  when: not ansible_check_mode
 
 - name: Wait for DNS port to come up
   ansible.builtin.wait_for:
     host: "{{ ansible_host }}"
     port: 53
     timeout: 60
+  when: not ansible_check_mode
 
 - name: Verify Pi-hole answers DNS queries
   ansible.builtin.command: >-
@@ -51,3 +54,4 @@
   register: pihole_dig
   changed_when: false
   failed_when: pihole_dig.stdout | trim == ''
+  when: not ansible_check_mode

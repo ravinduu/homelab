@@ -1,5 +1,11 @@
 - name: Configure homelab
   hosts: homelab
   roles:
-    - docker
-    - pihole
+    - role: storage
+      tags: [storage]
+    - role: docker
+      tags: [docker]
+    - role: pihole
+      tags: [pihole]
+    - role: jellyfin
+      tags: [jellyfin]

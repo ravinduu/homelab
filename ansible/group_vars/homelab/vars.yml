@@ -1,8 +1,21 @@
+# --- Storage ---
+storage_mounts:
+  - path: /mnt/media
+    uuid: 3badd22d-13a1-4bc1-b5fb-b35970ff9087
+    fstype: ext4
+    opts: defaults,nofail
+
+# --- Pi-hole ---
 pihole_stack_dir: /opt/stacks/pihole
 pihole_data_dir: /mnt/old-hdd/docker/pihole/etc-pihole
-pihole_mount_point: /mnt/old-hdd
 pihole_tz: Asia/Colombo
 pihole_compose_src: "{{ playbook_dir }}/../docker/pihole/compose.yaml"
-
-# Used by the post-deploy DNS check
 pihole_test_domain: example.com
+
+# --- Jellyfin ---
+jellyfin_stack_dir: /opt/stacks/jellyfin
+jellyfin_data_dir: /var/lib/homelab/jellyfin
+jellyfin_media_dir: /mnt/media/jellyfin-media
+jellyfin_render_device: /dev/dri/renderD128
+jellyfin_compose_src: "{{ playbook_dir }}/../docker/jellyfin/compose.yaml"
+jellyfin_web_bind_ip: 192.168.1.10
