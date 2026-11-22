@@ -31,3 +31,43 @@ secrets/
 # Runtime-only operational data; keep outside version control
 ops/runtime-env/
 ops/approvals/
+
+# Terraform working directory
+**/.terraform/*
+
+# Terraform state files (may contain sensitive information)
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Terraform crash logs
+crash.log
+crash.*.log
+
+# Terraform variable files (may contain secrets)
+*.tfvars
+*.tfvars.json
+
+# Local override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform CLI configuration
+.terraformrc
+terraform.rc
+
+# Terraform plan files
+*.tfplan
+tfplan
+tfplan.*
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
