@@ -1,0 +1,35 @@
+- name: Inspect existing monitoring data volumes
+  community.docker.docker_volume_info:
+    name: "{{ item }}"
+  loop: [prometheus_data, grafana_data]
+  register: monitoring_volumes
+  become: true
+  when: not ansible_check_mode
+
+- name: Refuse to replace missing monitoring data volumes
+  ansible.builtin.assert:
+    that: item.exists
+    fail_msg: >-
+      Existing volume {{ item.item }} is missing. Restore it before adoption.
+      On a fresh server, explicitly provision the external volumes first.
+  loop: "{{ monitoring_volumes.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: not ansible_check_mode
+
+- name: Check monitoring host paths and devices
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: [/proc, /sys, /var/run, /var/lib/docker, /dev/disk, /dev/kmsg, /var/run/docker.sock]
+  register: monitoring_host_paths
+  become: true
+
+- name: Refuse to deploy without monitoring host paths
+  ansible.builtin.assert:
+    that: item.stat.exists
+    fail_msg: "Required monitoring host path {{ item.item }} is missing."
+  loop: "{{ monitoring_host_paths.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: not ansible_check_mode
+

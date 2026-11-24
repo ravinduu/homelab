@@ -28,6 +28,22 @@ coverage.xml
 !.env.example
 secrets/
 
+# Local vault passwords and private keys (encrypted vault.yml stays tracked)
+.vault_pass*
+.vault-pass*
+.vaultpass*
+.vault_password*
+.vault-password*
+vault_pass*
+vault-pass*
+vault_password*
+vault-password*
+*.pem
+*.key
+id_rsa
+id_ed25519
+.aws/
+
 # Runtime-only operational data; keep outside version control
 ops/runtime-env/
 ops/approvals/

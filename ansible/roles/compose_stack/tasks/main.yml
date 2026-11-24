@@ -1,0 +1,10 @@
+- name: Stage Compose stack
+  ansible.builtin.import_tasks: stage.yml
+
+- name: Deploy Compose stack
+  ansible.builtin.import_tasks: deploy.yml
+  when: not ansible_check_mode
+
+- name: Verify Compose stack
+  ansible.builtin.import_tasks: verify.yml
+  when: not ansible_check_mode

@@ -1,130 +1,28 @@
-- name: Validate Grafana credentials
-  ansible.builtin.assert:
-    that:
-      - monitoring_grafana_admin_user | string | length > 0
-      - vault_grafana_admin_password | default('') | string | length > 0
-      - "'\n' not in monitoring_grafana_admin_user"
-      - "'\r' not in monitoring_grafana_admin_user"
-      - "'\n' not in (vault_grafana_admin_password | default(''))"
-      - "'\r' not in (vault_grafana_admin_password | default(''))"
-    fail_msg: Set the existing Grafana username and add its password to Ansible Vault.
-  no_log: true
+- name: Resolve and validate Grafana initialization credentials
+  ansible.builtin.import_tasks: credentials.yml
 
-- name: Inspect existing monitoring data volumes
-  community.docker.docker_volume_info:
-    name: "{{ item }}"
-  loop: [prometheus_data, grafana_data]
-  register: monitoring_volumes
-  become: true
-  when: not ansible_check_mode
+- name: Check monitoring volumes and host prerequisites
+  ansible.builtin.import_tasks: preflight.yml
 
-- name: Refuse to replace missing monitoring data volumes
-  ansible.builtin.assert:
-    that: item.exists
-    fail_msg: >-
-      Existing volume {{ item.item }} is missing. Restore it before adoption.
-      On a fresh server, explicitly provision the external volumes first.
-  loop: "{{ monitoring_volumes.results }}"
-  loop_control:
-    label: "{{ item.item }}"
-  when: not ansible_check_mode
-
-- name: Check monitoring host paths and devices
-  ansible.builtin.stat:
-    path: "{{ item }}"
-  loop: [/proc, /sys, /var/run, /var/lib/docker, /dev/disk, /dev/kmsg, /var/run/docker.sock]
-  register: monitoring_host_paths
-  become: true
-
-- name: Refuse to deploy without monitoring host paths
-  ansible.builtin.assert:
-    that: item.stat.exists
-    fail_msg: "Required monitoring host path {{ item.item }} is missing."
-  loop: "{{ monitoring_host_paths.results }}"
-  loop_control:
-    label: "{{ item.item }}"
-  when: not ansible_check_mode
-
-- name: Inspect monitoring stack directories before staging
-  ansible.builtin.stat:
-    path: "{{ monitoring_stack_dir }}/{{ item }}"
-  loop: [prometheus, grafana/provisioning/datasources]
-  register: monitoring_stack
-  become: true
-
-- name: Create monitoring stack directories
-  ansible.builtin.file:
-    path: "{{ monitoring_stack_dir }}/{{ item }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-  loop: ['', prometheus, grafana, grafana/provisioning, grafana/provisioning/datasources]
-  become: true
-
-- name: Stage monitoring configuration
-  when: >-
-    not ansible_check_mode or
-    (monitoring_stack.results | selectattr('stat.isdir', 'defined') |
-     selectattr('stat.isdir') | list | length == 2)
-  become: true
-  block:
-    - name: Copy monitoring compose file
-      ansible.builtin.copy:
-        src: "{{ monitoring_compose_src }}"
-        dest: "{{ monitoring_stack_dir }}/compose.yaml"
-        owner: root
-        group: root
-        mode: "0644"
-      register: monitoring_compose
-
-    - name: Copy Prometheus and Grafana configuration
-      ansible.builtin.copy:
-        src: "{{ monitoring_config_src }}/{{ item }}"
-        dest: "{{ monitoring_stack_dir }}/{{ item }}"
-        owner: root
-        group: root
-        mode: "0644"
-      loop:
-        - prometheus/prometheus.yml
-        - grafana/provisioning/datasources/prometheus.yml
-      register: monitoring_config
-
-    - name: Render monitoring environment with secrets
-      ansible.builtin.template:
-        src: env.j2
-        dest: "{{ monitoring_stack_dir }}/.env"
-        owner: root
-        group: root
-        mode: "0600"
-      no_log: true
-      diff: false
-      register: monitoring_env
-
-- name: Deploy monitoring
-  community.docker.docker_compose_v2:
-    project_src: "{{ monitoring_stack_dir }}"
-    state: present
-    pull: missing
-    recreate: >-
-      {{ 'always' if (monitoring_compose.changed or monitoring_config.changed or
-                     monitoring_env.changed) else 'auto' }}
-    wait: true
-    wait_timeout: 180
-  become: true
-  no_log: true
-  when: not ansible_check_mode
-
-- name: Verify Prometheus and Grafana endpoints on the server
-  ansible.builtin.uri:
-    url: "{{ item }}"
-    status_code: 200
-  loop:
-    - http://127.0.0.1:9090/-/ready
-    - http://127.0.0.1:3000/api/health
-  register: monitoring_health
-  until: monitoring_health.status | default(0) == 200
-  retries: 12
-  delay: 5
-  changed_when: false
-  when: not ansible_check_mode
+- name: Deploy monitoring stack
+  ansible.builtin.include_role:
+    name: compose_stack
+    apply:
+      tags: [monitoring]
+  vars:
+    stack_dir: "{{ monitoring_stack_dir }}"
+    stack_compose_src: "{{ monitoring_compose_src }}"
+    stack_env_template: "{{ playbook_dir }}/roles/monitoring/templates/env.j2"
+    stack_directories:
+      - path: "{{ monitoring_stack_dir }}/prometheus"
+      - path: "{{ monitoring_stack_dir }}/grafana"
+      - path: "{{ monitoring_stack_dir }}/grafana/provisioning"
+      - path: "{{ monitoring_stack_dir }}/grafana/provisioning/datasources"
+    stack_config_files:
+      - src: "{{ monitoring_config_src }}/prometheus/prometheus.yml"
+        dest: prometheus/prometheus.yml
+      - src: "{{ monitoring_config_src }}/grafana/provisioning/datasources/prometheus.yml"
+        dest: grafana/provisioning/datasources/prometheus.yml
+    stack_health_urls:
+      - "http://{{ monitoring_web_bind_ip }}:9090/-/ready"
+      - "http://{{ monitoring_web_bind_ip }}:3000/api/health"

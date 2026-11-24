@@ -1,0 +1,33 @@
+- name: Inspect containers for missing network attachments
+  community.docker.docker_container_info:
+    name: "{{ item }}"
+  loop: "{{ stack_repair_containers }}"
+  register: stack_containers
+  become: true
+  no_log: true
+
+- name: Reset stack network repair decision
+  ansible.builtin.set_fact:
+    stack_network_repair: false
+
+- name: Detect disconnected containers
+  ansible.builtin.set_fact:
+    stack_network_repair: true
+  loop: "{{ stack_containers.results }}"
+  when:
+    - item.exists
+    - item.container.NetworkSettings.Networks | length == 0
+  no_log: true
+
+- name: Apply Compose stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ stack_dir }}"
+    state: present
+    pull: missing
+    recreate: >-
+      {{ 'always' if (stack_compose.changed or stack_config.changed or
+                     stack_env.changed or stack_network_repair) else 'auto' }}
+    wait: "{{ stack_wait }}"
+    wait_timeout: "{{ stack_wait_timeout }}"
+  become: true
+  no_log: true

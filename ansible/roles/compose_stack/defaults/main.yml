@@ -1,0 +1,12 @@
+# Required: stack_dir, stack_compose_src, stack_env_template.
+stack_owner: root
+stack_group: root
+stack_directories: []
+stack_config_files: []
+stack_repair_containers: []
+stack_wait: true
+stack_wait_timeout: 180
+stack_web_ports: []
+stack_health_urls: []
+stack_web_host: "{{ ansible_host }}"
+stack_port_timeout: 120

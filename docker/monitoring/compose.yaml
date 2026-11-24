@@ -15,7 +15,7 @@ services:
     image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
     container_name: prometheus
     ports:
-      - "127.0.0.1:9090:9090"
+      - "${WEB_BIND_IP:-127.0.0.1}:9090:9090"
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -47,7 +47,7 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?required in protected monitoring runtime env}
       GF_AUTH_ANONYMOUS_ENABLED: "false"
     ports:
-      - "127.0.0.1:3000:3000"
+      - "${WEB_BIND_IP:-127.0.0.1}:3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
       - type: bind

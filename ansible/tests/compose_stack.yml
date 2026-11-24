@@ -1,0 +1,140 @@
+# Run with --check. Real writes are limited to temporary test fixtures.
+- name: Verify shared stack staging without Docker or SSH
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [stack_test]
+  vars:
+    ansible_become: false
+    stack_test_value: fixture-secret
+    stack_owner: "{{ lookup('ansible.builtin.pipe', 'id -u') }}"
+    stack_group: "{{ lookup('ansible.builtin.pipe', 'id -g') }}"
+  tasks:
+    - name: Require check mode to prevent deployment
+      ansible.builtin.assert:
+        that: ansible_check_mode
+
+    - name: Create temporary test workspace
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: compose-stack-test-
+      register: stack_test_dir
+      check_mode: false
+
+    - name: Exercise stack staging
+      block:
+        - name: Prepare existing stack directories
+          ansible.builtin.file:
+            path: "{{ stack_test_dir.path }}/existing/config"
+            state: directory
+            mode: "0755"
+          check_mode: false
+
+        - name: Stage an existing stack with additional configuration
+          ansible.builtin.include_role:
+            name: compose_stack
+            apply:
+              tags: [stack_test]
+          vars:
+            stack_dir: "{{ stack_test_dir.path }}/existing"
+            stack_compose_src: "{{ playbook_dir }}/fixtures/compose.yaml"
+            stack_env_template: "{{ playbook_dir }}/fixtures/env.j2"
+            stack_directories:
+              - path: "{{ stack_test_dir.path }}/existing/config"
+            stack_config_files:
+              - src: "{{ playbook_dir }}/fixtures/compose.yaml"
+                dest: config/settings.yml
+            stack_wait: false
+
+        - name: Verify existing stack was staged in check mode
+          ansible.builtin.assert:
+            that:
+              - stack_compose.changed
+              - stack_config.changed
+              - stack_env.changed
+              - stack_config.results | length == 1
+              - stack_containers is skipped
+              - stack_test_value in lookup('ansible.builtin.template', playbook_dir + '/fixtures/env.j2')
+
+        - name: Write stack files inside the temporary workspace
+          ansible.builtin.include_role:
+            name: compose_stack
+            tasks_from: stage
+            apply:
+              tags: [stack_test]
+              check_mode: false
+          vars:
+            stack_dir: "{{ stack_test_dir.path }}/existing"
+            stack_compose_src: "{{ playbook_dir }}/fixtures/compose.yaml"
+            stack_env_template: "{{ playbook_dir }}/fixtures/env.j2"
+            stack_directories:
+              - path: "{{ stack_test_dir.path }}/existing/config"
+            stack_config_files:
+              - src: "{{ playbook_dir }}/fixtures/compose.yaml"
+                dest: config/settings.yml
+
+        - name: Inspect rendered environment permissions
+          ansible.builtin.stat:
+            path: "{{ stack_test_dir.path }}/existing/.env"
+          register: stack_test_env
+
+        - name: Verify environment contents and permissions
+          ansible.builtin.assert:
+            that:
+              - stack_test_env.stat.mode == '0600'
+              - lookup('ansible.builtin.file', stack_test_dir.path + '/existing/.env') == 'TEST_VALUE=' + stack_test_value
+          no_log: true
+
+        - name: Repeat unchanged staging with default configuration options
+          ansible.builtin.include_role:
+            name: compose_stack
+            tasks_from: stage
+            apply:
+              tags: [stack_test]
+              check_mode: false
+          vars:
+            stack_dir: "{{ stack_test_dir.path }}/existing"
+            stack_compose_src: "{{ playbook_dir }}/fixtures/compose.yaml"
+            stack_env_template: "{{ playbook_dir }}/fixtures/env.j2"
+
+        - name: Verify idempotence and per-stack option isolation
+          ansible.builtin.assert:
+            that:
+              - not stack_compose.changed
+              - not stack_config.changed
+              - not stack_env.changed
+              - stack_config.results | length == 0
+              - stack_existing_directories.results | length == 1
+
+        - name: Stage a fresh stack using default options
+          ansible.builtin.include_role:
+            name: compose_stack
+            apply:
+              tags: [stack_test]
+          vars:
+            stack_dir: "{{ stack_test_dir.path }}/fresh"
+            stack_compose_src: "{{ playbook_dir }}/fixtures/compose.yaml"
+            stack_env_template: "{{ playbook_dir }}/fixtures/env.j2"
+
+        - name: Verify new directories defer staging in check mode
+          ansible.builtin.assert:
+            that:
+              - stack_compose is skipped
+              - stack_config is skipped
+              - stack_env is skipped
+              - stack_existing_directories.results | length == 1
+
+        - name: Inspect fixture environment after check mode
+          ansible.builtin.stat:
+            path: "{{ stack_test_dir.path }}/fresh/.env"
+          register: stack_test_env
+
+        - name: Verify check mode did not write credentials
+          ansible.builtin.assert:
+            that: not stack_test_env.stat.exists
+      always:
+        - name: Remove temporary test workspace
+          ansible.builtin.file:
+            path: "{{ stack_test_dir.path }}"
+            state: absent
+          check_mode: false

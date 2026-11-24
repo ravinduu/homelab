@@ -1,0 +1,60 @@
+- name: Inspect stack directories before staging
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  loop: "{{ [{'path': stack_dir}] + stack_directories }}"
+  loop_control:
+    label: "{{ item.path }}"
+  register: stack_existing_directories
+  become: true
+
+- name: Create stack directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default(omit) }}"
+    group: "{{ item.group | default(omit) }}"
+    mode: "{{ item.mode | default('0755') }}"
+  loop: "{{ [{'path': stack_dir}] + stack_directories }}"
+  loop_control:
+    label: "{{ item.path }}"
+  become: true
+
+# Check mode cannot copy into directories that it only predicts creating.
+- name: Stage stack configuration
+  when: >-
+    not ansible_check_mode or
+    (stack_existing_directories.results | selectattr('stat.isdir', 'defined') |
+     selectattr('stat.isdir') | list | length == stack_existing_directories.results | length)
+  become: true
+  block:
+    - name: Copy Compose file
+      ansible.builtin.copy:
+        src: "{{ stack_compose_src }}"
+        dest: "{{ stack_dir }}/compose.yaml"
+        owner: "{{ stack_owner }}"
+        group: "{{ stack_group }}"
+        mode: "0644"
+      register: stack_compose
+
+    - name: Copy stack configuration files
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "{{ stack_dir }}/{{ item.dest }}"
+        owner: "{{ stack_owner }}"
+        group: "{{ stack_group }}"
+        mode: "0644"
+      loop: "{{ stack_config_files }}"
+      loop_control:
+        label: "{{ item.dest }}"
+      register: stack_config
+
+    - name: Render protected stack environment
+      ansible.builtin.template:
+        src: "{{ stack_env_template }}"
+        dest: "{{ stack_dir }}/.env"
+        owner: "{{ stack_owner }}"
+        group: "{{ stack_group }}"
+        mode: "0600"
+      no_log: true
+      diff: false
+      register: stack_env

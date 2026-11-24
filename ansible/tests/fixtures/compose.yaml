@@ -1,0 +1,4 @@
+name: compose-stack-test
+services:
+  app:
+    image: example.invalid/test:latest

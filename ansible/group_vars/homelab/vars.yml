@@ -32,4 +32,5 @@ arr_web_bind_ip: 192.168.1.10
 monitoring_stack_dir: /opt/stacks/monitoring
 monitoring_compose_src: "{{ playbook_dir }}/../docker/monitoring/compose.yaml"
 monitoring_config_src: "{{ playbook_dir }}/../docker/monitoring"
+monitoring_web_bind_ip: 192.168.1.10
 monitoring_grafana_admin_user: admin

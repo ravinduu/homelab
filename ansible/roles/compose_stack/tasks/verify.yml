@@ -1,0 +1,17 @@
+- name: Verify stack web ports
+  ansible.builtin.wait_for:
+    host: "{{ stack_web_host }}"
+    port: "{{ item }}"
+    timeout: "{{ stack_port_timeout }}"
+  loop: "{{ stack_web_ports }}"
+
+- name: Verify stack HTTP endpoints
+  ansible.builtin.uri:
+    url: "{{ item }}"
+    status_code: 200
+  loop: "{{ stack_health_urls }}"
+  register: stack_health
+  until: stack_health.status | default(0) == 200
+  retries: 12
+  delay: 5
+  changed_when: false

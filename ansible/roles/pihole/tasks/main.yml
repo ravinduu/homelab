@@ -1,51 +1,17 @@
-- name: Create stack directory
-  ansible.builtin.file:
-    path: "{{ pihole_stack_dir }}"
-    state: directory
-    mode: "0755"
-  become: true
-
-- name: Create Pi-hole data directory (compose uses create_host_path false)
-  ansible.builtin.file:
-    path: "{{ pihole_data_dir }}"
-    state: directory
-    mode: "0755"
-  become: true
-
-- name: Copy compose file
-  ansible.builtin.copy:
-    src: "{{ pihole_compose_src }}"
-    dest: "{{ pihole_stack_dir }}/compose.yaml"
-    mode: "0644"
-  become: true
-  register: pihole_compose
-  ignore_errors: "{{ ansible_check_mode }}"
-
-- name: Render .env with secrets
-  ansible.builtin.template:
-    src: env.j2
-    dest: "{{ pihole_stack_dir }}/.env"
-    mode: "0600"
-  become: true
-  no_log: true
-  register: pihole_env
-  ignore_errors: "{{ ansible_check_mode }}"
-
-- name: Deploy Pi-hole
-  community.docker.docker_compose_v2:
-    project_src: "{{ pihole_stack_dir }}"
-    state: present
-    pull: missing
-    recreate: "{{ 'always' if (pihole_compose.changed or pihole_env.changed) else 'auto' }}"
-  become: true
-  when: not ansible_check_mode
-
-- name: Wait for DNS port to come up
-  ansible.builtin.wait_for:
-    host: "{{ ansible_host }}"
-    port: 53
-    timeout: 60
-  when: not ansible_check_mode
+- name: Deploy Pi-hole stack
+  ansible.builtin.include_role:
+    name: compose_stack
+    apply:
+      tags: [pihole]
+  vars:
+    stack_dir: "{{ pihole_stack_dir }}"
+    stack_compose_src: "{{ pihole_compose_src }}"
+    stack_env_template: "{{ playbook_dir }}/roles/pihole/templates/env.j2"
+    stack_directories:
+      - path: "{{ pihole_data_dir }}"
+    stack_wait: false
+    stack_web_ports: [53]
+    stack_port_timeout: 60
 
 - name: Verify Pi-hole answers DNS queries
   ansible.builtin.command: >-
